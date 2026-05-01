@@ -1,0 +1,172 @@
+"""Main orchestration engine — wires registry, bus, router, memory together."""
+
+from __future__ import annotations
+
+import asyncio
+import os
+from datetime import datetime, timedelta, timezone
+from typing import Any
+
+from .bus import MessageBus
+from .memory import AgencyMemory
+from .models import AgencyConfig, AgencyTask, IntelReport, ModuleStatus, RepoCategory, RepoNode, TaskStatus
+from .registry import RepoRegistry
+from .router import TaskRouter
+from .runner import CloneManager, RepoRunner
+
+
+class AgencyEngine:
+    """Central engine for the One Person Agency."""
+
+    def __init__(self, config: AgencyConfig | None = None) -> None:
+        self.config = config or AgencyConfig()
+        self.registry = RepoRegistry(
+            data_dir=self.config.data_dir,
+            github_token=self.config.github_token,
+        )
+        self.bus = MessageBus()
+        self.router = TaskRouter(self.registry, self.bus)
+        self.memory = AgencyMemory(
+            data_dir=self.config.data_dir,
+            backend=self.config.memory_backend,
+        )
+        self.runner = RepoRunner(CloneManager(os.path.join(self.config.data_dir, "repos")))
+        self._running = False
+        self._task_queue: asyncio.Queue[AgencyTask] = asyncio.Queue()
+
+    async def sync_repos(self, username: str | None = None) -> list[RepoNode]:
+        """Sync all GitHub repos into the registry."""
+        user = username or self.config.github_username
+        discovered = await self.registry.discover(user)
+        self.memory.log_event("registry.sync", {"username": user, "count": len(discovered)})
+        return discovered
+
+    async def dispatch(self, intent: str, payload: dict[str, Any] | None = None) -> AgencyTask:
+        """Dispatch a task through the agency."""
+        task = await self.router.route(intent, payload)
+        self.memory.log_event("task.created", {"task_id": task.id, "intent": intent})
+        await self._execute_task(task)
+        return task
+
+    async def _execute_task(self, task: AgencyTask) -> None:
+        """Execute a task by cloning and running the target module."""
+        task.status = TaskStatus.RUNNING
+        task.started_at = task.started_at or datetime.now(timezone.utc)
+        self.memory.log_event("task.running", {"task_id": task.id})
+
+        try:
+            if task.module_id:
+                mod = self.registry.get(task.module_id)
+                if mod:
+                    # Actually clone and run the module
+                    run_result = await self.runner.run(
+                        mod,
+                        command=task.payload.get("command", "run"),
+                        env=task.payload.get("env"),
+                        timeout=task.payload.get("timeout", 60),
+                    )
+                    task.result = {
+                        "module": mod.name,
+                        "category": mod.category.value,
+                        "url": mod.url,
+                        "capabilities": mod.capabilities,
+                        "execution": run_result,
+                    }
+                    self.registry.set_status(mod.id, ModuleStatus.ACTIVE)
+                else:
+                    task.result = {"note": "Module not found in registry."}
+            else:
+                # No specific module — try to run a category adapter
+                category = task.category
+                if category:
+                    task.result = await self._run_category_adapter(category, task.payload)
+                else:
+                    task.result = {
+                        "note": "No module or category matched.",
+                        "intent": task.intent,
+                    }
+
+            task.status = TaskStatus.COMPLETED
+            task.completed_at = datetime.now(timezone.utc)
+            self.memory.log_event("task.completed", {"task_id": task.id})
+        except Exception as exc:
+            task.status = TaskStatus.FAILED
+            task.error = str(exc)
+            self.memory.log_event("task.failed", {"task_id": task.id, "error": str(exc)})
+
+    async def _run_category_adapter(self, category: RepoCategory, payload: dict[str, Any]) -> dict[str, Any]:
+        """Run the best module from a category."""
+        modules = self.registry.by_category(category)
+        if not modules:
+            return {"note": f"No modules in category {category.value}"}
+        # Pick the one with the most stars
+        best = max(modules, key=lambda m: m.stars)
+        run_result = await self.runner.run(
+            best,
+            command=payload.get("command", "run"),
+            env=payload.get("env"),
+            timeout=payload.get("timeout", 60),
+        )
+        return {
+            "category": category.value,
+            "module": best.name,
+            "execution": run_result,
+        }
+
+    def stats(self) -> dict[str, Any]:
+        """Return combined agency stats."""
+        return {
+            "config": self.config.model_dump(mode="json"),
+            "registry": self.registry.stats(),
+            "memory_events": len(self.memory.recent_events(limit=999999)),
+        }
+
+    async def run_intel_scout(
+        self,
+        report_type: str = "trending",
+        languages: list[str] | None = None,
+        min_stars: int = 50,
+    ) -> IntelReport:
+        """Run the GitHub intelligence scout."""
+        from datetime import datetime, timedelta
+
+        headers = {"Accept": "application/vnd.github+json", "User-Agent": "sahiixx-agency"}
+        if self.config.github_token:
+            headers["Authorization"] = f"Bearer {self.config.github_token}"
+
+        repos: list[RepoNode] = []
+        queries: list[str] = []
+
+        async with __import__("httpx").AsyncClient(timeout=30) as client:
+            if report_type in ("trending", "velocity"):
+                week_ago = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
+                q = f"created:>{week_ago} stars:>{min_stars}"
+                if languages:
+                    q += " language:" + " language:".join(languages)
+                queries.append(q)
+                url = f"https://api.github.com/search/repositories?q={q}&sort=stars&order=desc&per_page=20"
+                resp = await client.get(url, headers=headers)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    for item in data.get("items", []):
+                        repos.append(self.registry._raw_to_node(item))
+
+            if report_type in ("hidden_gems",):
+                q = f"stars:100..1000 pushed:>{week_ago}"
+                queries.append(q)
+                url = f"https://api.github.com/search/repositories?q={q}&sort=stars&order=desc&per_page=15"
+                resp = await client.get(url, headers=headers)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    for item in data.get("items", []):
+                        repos.append(self.registry._raw_to_node(item))
+
+        report = IntelReport(
+            id=f"intel_{__import__('uuid').uuid4().hex[:8]}",
+            report_type=report_type,  # type: ignore[arg-type]
+            repos=repos,
+            summary=f"Scout found {len(repos)} repos for type '{report_type}'.",
+            raw_queries=queries,
+        )
+        self.memory.log_event("intel.scout", {"report_id": report.id, "type": report_type, "count": len(repos)})
+        return report

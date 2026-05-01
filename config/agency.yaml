@@ -1,0 +1,18 @@
+# One Person Agency Configuration
+github_username: "sahiixx"
+github_token: null  # Set via GITHUB_TOKEN env var
+
+api_host: "0.0.0.0"
+api_port: 8080
+dashboard_port: 3000
+mcp_port: 8081
+
+memory_backend: "sqlite"
+data_dir: "./data"
+
+auto_sync_interval_minutes: 60
+log_level: "INFO"
+
+# Optional LLM integration for enhanced routing
+default_llm: null  # e.g. "openai/gpt-4o"
+llm_api_key: null

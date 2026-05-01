@@ -1,0 +1,1 @@
+"""One Person Agency CLI."""

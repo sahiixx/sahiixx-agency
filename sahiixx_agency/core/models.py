@@ -1,5 +1,4 @@
 """Pydantic models for the agency domain."""
-
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -43,6 +42,13 @@ class RepoCategory(str, Enum):
     INFRASTRUCTURE = "infrastructure"
     FORK = "fork"
     UNCATEGORIZED = "uncategorized"
+
+
+class RoutingRule(BaseModel):
+    """A config-driven routing rule: regex pattern -> target module key."""
+
+    pattern: str = Field(..., description="Regex pattern matched against task intent")
+    target: str = Field(..., description="Ecosystem key of the module to route to")
 
 
 class RepoNode(BaseModel):
@@ -133,3 +139,13 @@ class AgencyConfig(BaseModel):
     log_level: str = Field(default="INFO")
     default_llm: str | None = Field(default=None)
     llm_api_key: str | None = Field(default=None)
+    # Config-driven routing rules loaded from agency.yaml
+    routing_rules: list[RoutingRule] = Field(
+        default_factory=list,
+        description="Ordered list of regex pattern -> module target routing rules",
+    )
+    # Ecosystem module registry loaded from agency.yaml
+    ecosystem: dict[str, dict[str, Any]] = Field(
+        default_factory=dict,
+        description="Named ecosystem modules with repo, url, role, bus_channel, etc.",
+    )

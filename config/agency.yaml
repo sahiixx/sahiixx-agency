@@ -16,3 +16,125 @@ log_level: "INFO"
 # Optional LLM integration for enhanced routing
 default_llm: null  # e.g. "openai/gpt-4o"
 llm_api_key: null
+
+# ─── Ecosystem Module Registry ────────────────────────────────
+# Core infrastructure — always loaded
+ecosystem:
+  bus:
+    repo: sahiixx-bus
+    url: https://github.com/sahiixx/sahiixx-bus
+    role: "Central pub/sub message bus and MCP gateway"
+    bus_channel: "bus.*"
+    protocol: internal
+    priority: 1
+
+  agency:
+    repo: sahiixx-agency
+    url: https://github.com/sahiixx/sahiixx-agency
+    role: "OPA orchestrator — auto-discovery and smart routing"
+    bus_channel: "agency.*"
+    protocol: mcp+rest
+    priority: 1
+
+  # ── Intelligence Modules ──
+  memory:
+    repo: sahiixx-titans-memory
+    url: https://github.com/sahiixx/sahiixx-titans-memory
+    role: "Surprise-weighted persistent memory (Titans NeurIPS 2025)"
+    bus_channel: "memory.*"
+    protocol: python-lib
+    tags: [memory, ai, titan]
+
+  graph:
+    repo: sahiixx-graph-sight
+    url: https://github.com/sahiixx/sahiixx-graph-sight
+    role: "Neo4j trust graph + AST code context engine"
+    bus_channel: "graph.*"
+    protocol: python-lib
+    tags: [graph, neo4j, context, trust]
+
+  # ── Agent Runtimes ──
+  swarm:
+    repo: sovereign-swarm-v2
+    url: https://github.com/sahiixx/sovereign-swarm-v2
+    role: "Modular multi-agent OS — Dubai RE, n8n, Telegram bot"
+    bus_channel: "swarm.*"
+    protocol: a2a
+    tags: [swarm, multi-agent, dubai, real-estate]
+
+  friday:
+    repo: friday-os
+    url: https://github.com/sahiixx/friday-os
+    role: "Voice-first AI OS (PERCEIVE→ROUTE→PLAN→EXECUTE pipeline)"
+    bus_channel: "friday.*"
+    protocol: mcp
+    tags: [voice, assistant, personal-ai, livekit]
+
+  agi:
+    repo: sahiix-agi
+    url: https://github.com/sahiixx/sahiix-agi
+    role: "AGI coordination layer — FastAPI + Redis + Qdrant"
+    bus_channel: "agi.*"
+    protocol: a2a
+    tags: [agi, coordination, redis, qdrant]
+
+  clearwing:
+    repo: sahiixx-clearwing
+    url: https://github.com/sahiixx/sahiixx-clearwing
+    role: "Autonomous pentesting swarm — 5-agent active fuzzing"
+    bus_channel: "security.*"
+    protocol: a2a
+    tags: [security, pentest, swarm, ollama]
+
+  geoflow:
+    repo: sahiixx-geoflow-agent
+    url: https://github.com/sahiixx/sahiixx-geoflow-agent
+    role: "GEO optimization for Dubai real estate listings"
+    bus_channel: "geo.*"
+    protocol: a2a
+    tags: [geo, dubai, real-estate, scraping, neo4j]
+
+  # ── Platforms ──
+  saas:
+    repo: saas-agent-platform
+    url: https://github.com/sahiixx/saas-agent-platform
+    role: "Multi-tenant agent SaaS (Hermes + MCP + SQLite)"
+    bus_channel: "saas.*"
+    protocol: rest+mcp
+    tags: [saas, multi-tenant, hermes, fastapi]
+
+  os:
+    repo: sahiix-os
+    url: https://github.com/sahiixx/sahiix-os
+    role: "AI-powered real estate automation workspace UI"
+    bus_channel: "ui.*"
+    protocol: rest
+    tags: [ui, real-estate, automation]
+
+  moltworker:
+    repo: moltworker
+    url: https://github.com/sahiixx/moltworker
+    role: "OpenClaw runtime on Cloudflare Workers"
+    bus_channel: "claw.*"
+    protocol: http
+    tags: [cloudflare, workers, openclaw]
+
+# ─── Routing Rules ─────────────────────────────────────────────
+routing_rules:
+  - pattern: "voice|speak|listen|call"
+    target: friday
+  - pattern: "pentest|scan|exploit|vuln|security"
+    target: clearwing
+  - pattern: "memory|remember|recall|forget"
+    target: memory
+  - pattern: "graph|trust|relationship|code context"
+    target: graph
+  - pattern: "dubai|real estate|listing|lead|broker"
+    target: geoflow
+  - pattern: "swarm|multi.agent|orchestrat"
+    target: swarm
+  - pattern: "tenant|saas|platform|user management"
+    target: saas
+  - pattern: "agi|coordinate|plan|reason"
+    target: agi
+

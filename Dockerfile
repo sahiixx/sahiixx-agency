@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Install Python deps
 COPY pyproject.toml ./
+COPY README.md ./
 RUN pip install --no-cache-dir -e "."
 
 # Copy app

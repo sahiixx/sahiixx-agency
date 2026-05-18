@@ -25,7 +25,7 @@ class AgencyEngine:
             github_token=self.config.github_token,
         )
         self.bus = MessageBus()
-        self.router = TaskRouter(self.registry, self.bus)
+        self.router = TaskRouter(self.registry, self.bus, config=self.config)
         self.memory = AgencyMemory(
             data_dir=self.config.data_dir,
             backend=self.config.memory_backend,

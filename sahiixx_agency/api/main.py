@@ -8,11 +8,11 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from sahiixx_agency.core.engine import AgencyEngine
-from sahiixx_agency.core.models import AgencyConfig, AgencyTask, RepoCategory
+from sahiixx_agency.core.models import AgencyConfig, RepoCategory
 
 _engine: AgencyEngine | None = None
 
@@ -30,14 +30,17 @@ async def lifespan(app: FastAPI):
     config = AgencyConfig()
     if os.path.exists(config_path):
         import yaml
+
         with open(config_path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
         config = AgencyConfig.model_validate(data)
     _engine = AgencyEngine(config)
+    await _engine.start_worker()
     # Auto-sync on startup if registry is empty
     if not _engine.registry.modules:
         await _engine.sync_repos(config.github_username)
     yield
+    await _engine.stop_worker()
     _engine = None
 
 
@@ -59,6 +62,7 @@ app.add_middleware(
 
 # ---------- Health & Status ----------
 
+
 @app.get("/")
 async def root() -> dict[str, str]:
     return {"name": "One Person Agency", "version": "1.0.0", "status": "running"}
@@ -77,6 +81,7 @@ async def stats() -> dict[str, Any]:
 
 # ---------- Registry ----------
 
+
 @app.get("/registry")
 async def list_registry(
     category: str | None = Query(None),
@@ -91,7 +96,7 @@ async def list_registry(
             cat = RepoCategory(category)
             modules = [m for m in modules if m.category == cat]
         except ValueError:
-            raise HTTPException(status_code=400, detail=f"Unknown category: {category}")
+            raise HTTPException(status_code=400, detail=f"Unknown category: {category}") from None
     if language:
         modules = [m for m in modules if m.language and m.language.lower() == language.lower()]
     modules.sort(key=lambda m: m.stars, reverse=True)
@@ -115,6 +120,7 @@ async def sync_registry(username: str | None = Query(None)) -> dict[str, Any]:
 
 # ---------- Tasks ----------
 
+
 @app.post("/tasks")
 async def create_task(intent: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
     task = await get_engine().dispatch(intent, payload)
@@ -123,8 +129,16 @@ async def create_task(intent: str, payload: dict[str, Any] | None = None) -> dic
 
 @app.get("/tasks")
 async def list_tasks(limit: int = Query(50, ge=1, le=200)) -> list[dict[str, Any]]:
-    events = get_engine().memory.recent_events(topic="task.completed", limit=limit)
-    return events
+    tasks = get_engine().list_tasks(limit=limit)
+    return [t.model_dump(mode="json") for t in tasks]
+
+
+@app.get("/tasks/{task_id}")
+async def get_task(task_id: str) -> dict[str, Any]:
+    task = get_engine().get_task(task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return task.model_dump(mode="json")
 
 
 @app.post("/tasks/{module_id:path}/execute")
@@ -156,6 +170,7 @@ async def execute_module(
 
 # ---------- Intel ----------
 
+
 @app.get("/intel")
 async def run_intel(
     report_type: str = Query("trending"),
@@ -166,6 +181,7 @@ async def run_intel(
 
 
 # ---------- Dashboard ----------
+
 
 @app.get("/dashboard/graph-data")
 async def graph_data() -> dict[str, Any]:
@@ -182,18 +198,20 @@ async def graph_data() -> dict[str, Any]:
         categories.add(cat)
         layers.add(mod.language or "Unknown")
         eras.add("recent" if mod.updated_at and (mod.updated_at.year >= 2025) else "landmark")
-        nodes.append({
-            "id": mod.id,
-            "name": mod.name,
-            "stars": mod.stars,
-            "category": cat,
-            "layer": mod.language or "Unknown",
-            "era": "recent" if mod.updated_at and (mod.updated_at.year >= 2025) else "landmark",
-            "url": mod.url,
-            "description": mod.description or "",
-            "language": mod.language or "N/A",
-            "why": " | ".join(mod.capabilities) or "Agency module",
-        })
+        nodes.append(
+            {
+                "id": mod.id,
+                "name": mod.name,
+                "stars": mod.stars,
+                "category": cat,
+                "layer": mod.language or "Unknown",
+                "era": "recent" if mod.updated_at and (mod.updated_at.year >= 2025) else "landmark",
+                "url": mod.url,
+                "description": mod.description or "",
+                "language": mod.language or "N/A",
+                "why": " | ".join(mod.capabilities) or "Agency module",
+            }
+        )
 
     # Simple linking by shared language
     by_lang: dict[str, list[str]] = {}
@@ -201,15 +219,17 @@ async def graph_data() -> dict[str, Any]:
         lang = mod.language or "Unknown"
         by_lang.setdefault(lang, []).append(mod.id)
 
-    for lang, ids in by_lang.items():
+    for _lang, ids in by_lang.items():
         for i in range(len(ids)):
             for j in range(i + 1, min(i + 3, len(ids))):
-                links.append({
-                    "source": ids[i],
-                    "target": ids[j],
-                    "type": "related",
-                    "strength": 0.5,
-                })
+                links.append(
+                    {
+                        "source": ids[i],
+                        "target": ids[j],
+                        "type": "related",
+                        "strength": 0.5,
+                    }
+                )
 
     return {
         "nodes": nodes,
@@ -239,6 +259,7 @@ if os.path.exists(static_dir):
     async def dashboard_spa(path: str) -> FileResponse:
         return FileResponse(os.path.join(static_dir, "index.html"))
 else:
+
     @app.get("/dashboard")
     async def dashboard_not_built() -> dict[str, str]:
         return {"status": "Dashboard not built. Run 'cd dashboard && npm run build'"}

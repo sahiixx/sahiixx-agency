@@ -29,6 +29,12 @@ opa registry
 # Dispatch a task
 opa dispatch "run voice assistant"
 
+# Dispatch without waiting
+opa dispatch "run voice assistant" --no-wait
+
+# Check task status
+opa task status <task-id>
+
 # Run intel scout
 opa intel --type trending
 
@@ -63,7 +69,9 @@ sahiixx-agency/
 | `/registry` | GET | List all modules |
 | `/registry/{id}` | GET | Get module details |
 | `/registry/sync` | POST | Sync repos from GitHub |
-| `/tasks` | POST | Create and dispatch a task |
+| `/tasks` | POST | Create and dispatch a task (returns pending) |
+| `/tasks` | GET | List recent tasks |
+| `/tasks/{id}` | GET | Get task status and result |
 | `/intel` | GET | Run intelligence scout |
 | `/dashboard/graph-data` | GET | Graph data for dashboard |
 

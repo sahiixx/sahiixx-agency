@@ -23,10 +23,22 @@ async def test_sync_repos(engine):
 
 @pytest.mark.asyncio
 async def test_dispatch_task(engine):
-    await engine.sync_repos("sahiixx")
-    task = await engine.dispatch("run voice assistant")
-    assert task.id is not None
-    assert task.status.value in ("pending", "running", "completed", "failed")
+    await engine.start_worker()
+    try:
+        await engine.sync_repos("sahiixx")
+        task = await engine.dispatch("run voice assistant")
+        assert task.id is not None
+        assert task.status.value == "pending"
+        # Poll for terminal status
+        for _ in range(40):
+            current = engine.get_task(task.id)
+            if current.status.value in ("completed", "failed"):
+                break
+            await asyncio.sleep(0.25)
+        final = engine.get_task(task.id)
+        assert final.status.value in ("completed", "failed")
+    finally:
+        await engine.stop_worker()
 
 
 def test_registry_stats(engine):
@@ -67,5 +79,26 @@ async def test_dispatch_returns_pending_and_worker_completes(engine):
             await asyncio.sleep(0.25)
         final = engine.get_task(task.id)
         assert final.status.value in ("completed", "failed")
+    finally:
+        await engine.stop_worker()
+
+
+
+@pytest.mark.asyncio
+async def test_get_task_unknown_id(engine):
+    assert engine.get_task("task_does_not_exist") is None
+
+
+@pytest.mark.asyncio
+async def test_list_tasks_returns_recent_tasks(engine):
+    await engine.start_worker()
+    try:
+        await engine.sync_repos("sahiixx")
+        task1 = await engine.dispatch("run voice assistant")
+        task2 = await engine.dispatch("run voice assistant")
+        tasks = engine.list_tasks(limit=10)
+        ids = {t.id for t in tasks}
+        assert task1.id in ids
+        assert task2.id in ids
     finally:
         await engine.stop_worker()

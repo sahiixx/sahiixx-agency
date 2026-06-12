@@ -7,6 +7,9 @@ import pytest
 from sahiixx_agency.core.engine import AgencyEngine
 from sahiixx_agency.core.models import AgencyConfig
 
+POLL_MAX_ATTEMPTS = 40
+POLL_INTERVAL = 0.25
+
 
 @pytest.fixture
 def engine(tmp_path):
@@ -30,11 +33,11 @@ async def test_dispatch_task(engine):
         assert task.id is not None
         assert task.status.value == "pending"
         # Poll for terminal status
-        for _ in range(40):
+        for _ in range(POLL_MAX_ATTEMPTS):
             current = engine.get_task(task.id)
             if current.status.value in ("completed", "failed"):
                 break
-            await asyncio.sleep(0.25)
+            await asyncio.sleep(POLL_INTERVAL)
         final = engine.get_task(task.id)
         assert final.status.value in ("completed", "failed")
     finally:
@@ -63,29 +66,7 @@ async def test_execute_module(engine):
     assert result["module"] == module.name
 
 
-@pytest.mark.asyncio
-async def test_dispatch_returns_pending_and_worker_completes(engine):
-    await engine.start_worker()
-    try:
-        await engine.sync_repos("sahiixx")
-        task = await engine.dispatch("run voice assistant")
-        assert task.status.value == "pending"
-        # Poll until terminal (timeout protects against hangs)
-        for _ in range(40):
-            current = engine.get_task(task.id)
-            assert current is not None
-            if current.status.value in ("completed", "failed"):
-                break
-            await asyncio.sleep(0.25)
-        final = engine.get_task(task.id)
-        assert final.status.value in ("completed", "failed")
-    finally:
-        await engine.stop_worker()
-
-
-
-@pytest.mark.asyncio
-async def test_get_task_unknown_id(engine):
+def test_get_task_unknown_id(engine):
     assert engine.get_task("task_does_not_exist") is None
 
 

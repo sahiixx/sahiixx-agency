@@ -9,8 +9,6 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-import httpx
-
 from .models import RepoNode
 
 
@@ -187,16 +185,15 @@ class RepoRunner:
             }
 
         # Install dependencies if needed
-        if meta["dependencies"] and meta.get("package_manager") == "npm":
-            if not (path / "node_modules").exists():
-                install_cmd = meta["commands"].get("install", ["npm", "install"])
-                subprocess.run(
-                    install_cmd,
-                    cwd=str(path),
-                    capture_output=True,
-                    text=True,
-                    timeout=120,
-                )
+        if meta["dependencies"] and meta.get("package_manager") == "npm" and not (path / "node_modules").exists():
+            install_cmd = meta["commands"].get("install", ["npm", "install"])
+            subprocess.run(
+                install_cmd,
+                cwd=str(path),
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
 
         # Run
         run_env = {**os.environ, **(env or {})}

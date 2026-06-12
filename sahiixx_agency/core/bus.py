@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from collections import defaultdict
-from typing import Callable
+from collections.abc import Callable
 
 from .models import BusMessage
 
-
-type Handler = Callable[[BusMessage], None]
+Handler = Callable[[BusMessage], None]
 
 
 class MessageBus:
@@ -25,10 +25,8 @@ class MessageBus:
 
     def unsubscribe(self, topic: str, handler: Handler) -> None:
         if topic in self._handlers:
-            try:
+            with contextlib.suppress(ValueError):
                 self._handlers[topic].remove(handler)
-            except ValueError:
-                pass
 
     async def publish(self, message: BusMessage) -> None:
         async with self._lock:
@@ -36,16 +34,12 @@ class MessageBus:
         # Notify all subscribers
         handlers = self._handlers.get(message.topic, [])
         for handler in handlers:
-            try:
+            with contextlib.suppress(Exception):
                 handler(message)
-            except Exception:
-                pass
         # Also notify wildcards
         for handler in self._handlers.get("*", []):
-            try:
+            with contextlib.suppress(Exception):
                 handler(message)
-            except Exception:
-                pass
 
     def history(self, topic: str | None = None, limit: int = 100) -> list[BusMessage]:
         msgs = self._history if topic is None else [m for m in self._history if m.topic == topic]

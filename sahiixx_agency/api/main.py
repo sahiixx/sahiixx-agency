@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Annotated, Any
 
@@ -24,7 +25,7 @@ def get_engine() -> AgencyEngine:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     global _engine
     config_path = os.environ.get("OPA_CONFIG", "./config/agency.yaml")
     config = AgencyConfig()

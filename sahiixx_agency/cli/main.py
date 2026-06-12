@@ -145,16 +145,22 @@ def dispatch(
             with console.status(f"[bold yellow]Executing: {intent}"):
                 for _ in range(max_polls):
                     current = engine.get_task(task.id)
+                    if current is None:
+                        break
                     if current.status in terminal_statuses:
                         break
                     await asyncio.sleep(DISPATCH_POLL_INTERVAL_S)
 
             final = engine.get_task(task.id)
+            if final is None:
+                console.print(f"[red]Task '{task.id}' disappeared during execution.[/red]")
+                raise typer.Exit(1)
             border = "green" if final.status == TaskStatus.COMPLETED else "red"
+            category_value = final.category.value if final.category else "N/A"
             if final.module_id:
                 console.print(
                     Panel(
-                        f"Routed to [bold cyan]{final.module_id}[/bold cyan] ([italic]{final.category.value}[/italic])\n"
+                        f"Routed to [bold cyan]{final.module_id}[/bold cyan] ([italic]{category_value}[/italic])\n"
                         f"Status: [bold]{final.status.value}[/bold]\n"
                         f"Result: {json.dumps(final.result, indent=2, default=str)}",
                         title=f"Task {final.id}",
@@ -164,7 +170,7 @@ def dispatch(
             else:
                 console.print(
                     Panel(
-                        f"No module matched. Category: {final.category.value}\n"
+                        f"No module matched. Category: {category_value}\n"
                         f"Status: [bold]{final.status.value}[/bold]\n"
                         f"Result: {json.dumps(final.result, indent=2, default=str)}",
                         title=f"Task {final.id}",
@@ -300,8 +306,6 @@ def exec(
     timeout: int = typer.Option(120, "--timeout", "-t", help="Execution timeout in seconds"),
 ) -> None:
     """Execute a module directly (clone, install, run)."""
-    import asyncio
-
     from sahiixx_agency.core.runner import CloneManager, RepoRunner
 
     engine = AgencyEngine(_load_config())

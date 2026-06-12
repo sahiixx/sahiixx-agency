@@ -71,9 +71,7 @@ class AgencyMemory:
     def get(self, key: str, default: Any = None) -> Any:
         if self.backend == "sqlite":
             with sqlite3.connect(self.db_path) as conn:
-                row = conn.execute(
-                    "SELECT value FROM memory WHERE key = ?", (key,)
-                ).fetchone()
+                row = conn.execute("SELECT value FROM memory WHERE key = ?", (key,)).fetchone()
                 return json.loads(row[0]) if row else default
         return self._data.get(key, default)
 
@@ -104,7 +102,7 @@ class AgencyMemory:
                         (limit,),
                     ).fetchall()
                 return [{"topic": r[0], "payload": json.loads(r[1]), "created_at": r[2]} for r in rows]
-        events = self._data.get("events", [])
+        events: list[dict[str, Any]] = self._data.get("events", [])
         if topic:
             events = [e for e in events if e.get("topic") == topic]
         return events[-limit:]

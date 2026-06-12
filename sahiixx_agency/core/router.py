@@ -1,12 +1,13 @@
 """Task router - matches intents to the best agency module."""
+
 from __future__ import annotations
 
 import re
 import uuid
 from typing import Any
 
-from .bus import BusMessage, MessageBus
-from .models import AgencyConfig, AgencyTask, RepoCategory, RepoNode, RoutingRule, TaskStatus
+from .bus import MessageBus
+from .models import AgencyConfig, AgencyTask, BusMessage, RepoCategory, RepoNode, RoutingRule, TaskStatus
 from .registry import RepoRegistry
 
 
@@ -30,8 +31,7 @@ class TaskRouter:
         self.config = config or AgencyConfig()
         # Pre-compile routing rule patterns for efficiency
         self._compiled_rules: list[tuple[re.Pattern[str], RoutingRule]] = [
-            (re.compile(rule.pattern, re.IGNORECASE), rule)
-            for rule in self.config.routing_rules
+            (re.compile(rule.pattern, re.IGNORECASE), rule) for rule in self.config.routing_rules
         ]
 
     async def route(self, intent: str, payload: dict[str, Any] | None = None) -> AgencyTask:

@@ -11,7 +11,6 @@ import httpx
 
 from .models import ModuleStatus, RepoCategory, RepoNode
 
-
 # Keywords → category mapping
 CATEGORY_RULES: list[tuple[RepoCategory, list[str]]] = [
     (

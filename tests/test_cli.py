@@ -30,6 +30,8 @@ def patched_engine(monkeypatch, tmp_path):
             capabilities=["voice"],
         ),
     ]
+    for module in fake_modules:
+        engine.registry._modules[module.id] = module
 
     async def fake_discover(username: str) -> list[RepoNode]:
         for module in fake_modules:
@@ -65,3 +67,9 @@ def test_task_status_unknown_id(patched_engine):
     result = runner.invoke(app, ["task", "status", "task_does_not_exist"])
     assert result.exit_code == 1
     assert "not found" in result.stdout.lower()
+
+
+def test_exec_invalid_json_payload(patched_engine):
+    result = runner.invoke(app, ["exec", "friday", "--payload", "not-json"])
+    assert result.exit_code == 1
+    assert "invalid json" in result.stdout.lower()

@@ -310,7 +310,12 @@ def exec(
         console.print(f"[red]Module '{module_id}' not found in registry.[/red]")
         raise typer.Exit(1)
 
-    data: dict[str, Any] = json.loads(payload)
+    try:
+        data: dict[str, Any] = json.loads(payload)
+    except json.JSONDecodeError as e:
+        console.print(f"[red]Invalid JSON payload: {e}[/red]")
+        raise typer.Exit(1) from e
+
     data.setdefault("timeout", timeout)
 
     with console.status(f"[bold green]Cloning & running {module_id}..."):

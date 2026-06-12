@@ -52,6 +52,7 @@ async def list_modules(category: str | None = None) -> str:
 async def dispatch_task(intent: str, payload: str = "{}") -> str:
     """Dispatch a task through the agency."""
     engine = _get_engine()
+    await engine.start_worker()
     data: dict[str, Any] = json.loads(payload)
     task = await engine.dispatch(intent, data)
     return json.dumps(

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import os
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -69,14 +69,13 @@ async def root() -> dict[str, str]:
 
 
 @app.get("/health")
-async def health() -> dict[str, Any]:
-    engine = get_engine()
+async def health(engine: Annotated[AgencyEngine, Depends(get_engine)]) -> dict[str, Any]:
     return {"status": "healthy", "registry_count": len(engine.registry.modules)}
 
 
 @app.get("/stats")
-async def stats() -> dict[str, Any]:
-    return get_engine().stats()
+async def stats(engine: Annotated[AgencyEngine, Depends(get_engine)]) -> dict[str, Any]:
+    return engine.stats()
 
 
 # ---------- Registry ----------
@@ -84,12 +83,12 @@ async def stats() -> dict[str, Any]:
 
 @app.get("/registry")
 async def list_registry(
+    engine: Annotated[AgencyEngine, Depends(get_engine)],
     category: str | None = Query(None),
     language: str | None = Query(None),
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ) -> list[dict[str, Any]]:
-    engine = get_engine()
     modules = engine.registry.modules
     if category:
         try:
@@ -104,16 +103,18 @@ async def list_registry(
 
 
 @app.get("/registry/{module_id}")
-async def get_module(module_id: str) -> dict[str, Any]:
-    mod = get_engine().registry.get(module_id)
+async def get_module(module_id: str, engine: Annotated[AgencyEngine, Depends(get_engine)]) -> dict[str, Any]:
+    mod = engine.registry.get(module_id)
     if not mod:
         raise HTTPException(status_code=404, detail="Module not found")
     return mod.model_dump(mode="json")
 
 
 @app.post("/registry/sync")
-async def sync_registry(username: str | None = Query(None)) -> dict[str, Any]:
-    engine = get_engine()
+async def sync_registry(
+    engine: Annotated[AgencyEngine, Depends(get_engine)],
+    username: str | None = Query(None),
+) -> dict[str, Any]:
     discovered = await engine.sync_repos(username or engine.config.github_username)
     return {"synced": len(discovered), "username": username or engine.config.github_username}
 
@@ -122,34 +123,33 @@ async def sync_registry(username: str | None = Query(None)) -> dict[str, Any]:
 
 
 @app.post("/tasks")
-async def create_task(intent: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
-    task = await get_engine().dispatch(intent, payload)
+async def create_task(
+    intent: str,
+    engine: Annotated[AgencyEngine, Depends(get_engine)],
+    payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    task = await engine.dispatch(intent, payload)
     return task.model_dump(mode="json")
 
 
 @app.get("/tasks")
-async def list_tasks(limit: int = Query(50, ge=1, le=200)) -> list[dict[str, Any]]:
-    tasks = get_engine().list_tasks(limit=limit)
+async def list_tasks(
+    engine: Annotated[AgencyEngine, Depends(get_engine)],
+    limit: int = Query(50, ge=1, le=200),
+) -> list[dict[str, Any]]:
+    tasks = engine.list_tasks(limit=limit)
     return [t.model_dump(mode="json") for t in tasks]
-
-
-@app.get("/tasks/{task_id}")
-async def get_task(task_id: str) -> dict[str, Any]:
-    task = get_engine().get_task(task_id)
-    if task is None:
-        raise HTTPException(status_code=404, detail="Task not found")
-    return task.model_dump(mode="json")
 
 
 @app.post("/tasks/{module_id:path}/execute")
 async def execute_module(
     module_id: str,
+    engine: Annotated[AgencyEngine, Depends(get_engine)],
     payload: dict[str, Any] | None = None,
     command: str = Query("run"),
     timeout: int = Query(120, ge=1, le=600),
 ) -> dict[str, Any]:
     """Clone, inspect, and execute a specific module."""
-    engine = get_engine()
     mod = engine.registry.get(module_id)
     if not mod:
         raise HTTPException(status_code=404, detail="Module not found")
@@ -168,15 +168,24 @@ async def execute_module(
     }
 
 
+@app.get("/tasks/{task_id}")
+async def get_task(task_id: str, engine: Annotated[AgencyEngine, Depends(get_engine)]) -> dict[str, Any]:
+    task = engine.get_task(task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return task.model_dump(mode="json")
+
+
 # ---------- Intel ----------
 
 
 @app.get("/intel")
 async def run_intel(
+    engine: Annotated[AgencyEngine, Depends(get_engine)],
     report_type: str = Query("trending"),
     min_stars: int = Query(50, ge=0),
 ) -> dict[str, Any]:
-    report = await get_engine().run_intel_scout(report_type, min_stars=min_stars)
+    report = await engine.run_intel_scout(report_type, min_stars=min_stars)
     return report.model_dump(mode="json")
 
 
@@ -184,9 +193,8 @@ async def run_intel(
 
 
 @app.get("/dashboard/graph-data")
-async def graph_data() -> dict[str, Any]:
+async def graph_data(engine: Annotated[AgencyEngine, Depends(get_engine)]) -> dict[str, Any]:
     """Serve graph data for the React dashboard."""
-    engine = get_engine()
     nodes = []
     links = []
     categories = set()

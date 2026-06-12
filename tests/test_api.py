@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import time
+from contextlib import asynccontextmanager
 
 import pytest
 from fastapi.testclient import TestClient
@@ -43,7 +45,6 @@ def client(tmp_path, monkeypatch):
     async def fake_discover(username: str) -> list[RepoNode]:
         for module in FAKE_MODULES:
             engine.registry._modules[module.id] = module
-        engine.registry._save()
         return FAKE_MODULES
 
     monkeypatch.setattr(engine.registry, "discover", fake_discover)
@@ -60,12 +61,25 @@ def client(tmp_path, monkeypatch):
         },
     )
 
-    # Ensure the lifespan and endpoints use this engine instance.
-    monkeypatch.setattr("sahiixx_agency.api.main.AgencyEngine", lambda config: engine)
+    async def _setup() -> None:
+        await engine.sync_repos("sahiixx")
+
+    @asynccontextmanager
+    async def _noop_lifespan(_app):
+        yield
+
+    asyncio.run(_setup())
     app.dependency_overrides[get_engine] = lambda: engine
-    with TestClient(app) as test_client:
-        yield test_client
+    original_lifespan = app.router.lifespan_context
+    app.router.lifespan_context = _noop_lifespan
+    try:
+        with TestClient(app) as test_client:
+            test_client.portal.call(engine.start_worker)
+            yield test_client
+            test_client.portal.call(engine.stop_worker)
+    finally:
         app.dependency_overrides.clear()
+        app.router.lifespan_context = original_lifespan
 
 
 def test_create_task_returns_pending(client):
@@ -81,12 +95,12 @@ def test_get_task_status_flow(client):
     task_id = create.json()["id"]
 
     status = "pending"
-    for _ in range(40):
+    for _ in range(20):
         resp = client.get(f"/tasks/{task_id}")
         status = resp.json()["status"]
         if status in ("completed", "failed"):
             break
-        time.sleep(0.25)
+        time.sleep(0.05)
 
     assert status in ("completed", "failed")
 

@@ -16,7 +16,11 @@ from rich.text import Text
 from rich.tree import Tree
 
 from sahiixx_agency.core.engine import AgencyEngine
-from sahiixx_agency.core.models import AgencyConfig, ModuleStatus, RepoCategory
+from sahiixx_agency.core.models import AgencyConfig, ModuleStatus, RepoCategory, TaskStatus
+
+DISPATCH_POLL_INTERVAL_S = 0.5
+DISPATCH_MAX_WAIT_S = 120
+OUTPUT_PREVIEW_LIMIT = 2000
 
 app = typer.Typer(
     name="opa",
@@ -114,8 +118,13 @@ def dispatch(
     no_wait: bool = typer.Option(False, "--no-wait", help="Return immediately with the pending task id"),
 ) -> None:
     """Dispatch a task through the agency."""
+    try:
+        data: dict[str, Any] = json.loads(payload)
+    except json.JSONDecodeError as e:
+        console.print(f"[red]Invalid JSON payload: {e}[/red]")
+        raise typer.Exit(1) from e
+
     engine = AgencyEngine(_load_config())
-    data: dict[str, Any] = json.loads(payload)
 
     async def _run() -> None:
         await engine.start_worker()
@@ -131,14 +140,17 @@ def dispatch(
                 )
                 return
 
+            terminal_statuses = {TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED}
+            max_polls = int(DISPATCH_MAX_WAIT_S / DISPATCH_POLL_INTERVAL_S)
             with console.status(f"[bold yellow]Executing: {intent}"):
-                for _ in range(240):  # 2 minute max wait
+                for _ in range(max_polls):
                     current = engine.get_task(task.id)
-                    if current.status.value in ("completed", "failed", "cancelled"):
+                    if current.status in terminal_statuses:
                         break
-                    await asyncio.sleep(0.5)
+                    await asyncio.sleep(DISPATCH_POLL_INTERVAL_S)
 
             final = engine.get_task(task.id)
+            border = "green" if final.status == TaskStatus.COMPLETED else "red"
             if final.module_id:
                 console.print(
                     Panel(
@@ -146,7 +158,7 @@ def dispatch(
                         f"Status: [bold]{final.status.value}[/bold]\n"
                         f"Result: {json.dumps(final.result, indent=2, default=str)}",
                         title=f"Task {final.id}",
-                        border_style="green" if final.status.value == "completed" else "red",
+                        border_style=border,
                     )
                 )
             else:
@@ -182,8 +194,13 @@ def task_status(
 
             result_preview = ""
             if task.result:
-                result_preview = json.dumps(task.result, indent=2, default=str)[:2000]
+                result_preview = json.dumps(task.result, indent=2, default=str)[:OUTPUT_PREVIEW_LIMIT]
             error_preview = task.error or ""
+
+            border_style = {
+                TaskStatus.COMPLETED: "green",
+                TaskStatus.FAILED: "red",
+            }.get(task.status, "yellow")
 
             console.print(
                 Panel(
@@ -196,11 +213,7 @@ def task_status(
                     f"\n[bold]Result:[/bold]\n{result_preview}\n"
                     f"[bold]Error:[/bold]\n{error_preview}",
                     title=f"Task {task.id}",
-                    border_style="green"
-                    if task.status.value == "completed"
-                    else "red"
-                    if task.status.value == "failed"
-                    else "yellow",
+                    border_style=border_style,
                 )
             )
         finally:
@@ -316,8 +329,8 @@ def exec(
             f"Type: {inspection.get('type', 'N/A')}\n"
             f"Return code: {result.get('returncode', 'N/A')}\n"
             f"Command: {result.get('command', 'N/A')}\n"
-            f"\n[bold]stdout:[/bold]\n{result.get('stdout', 'N/A')[:2000]}\n"
-            f"[bold]stderr:[/bold]\n{result.get('stderr', 'N/A')[:2000]}",
+            f"\n[bold]stdout:[/bold]\n{result.get('stdout', 'N/A')[:OUTPUT_PREVIEW_LIMIT]}\n"
+            f"[bold]stderr:[/bold]\n{result.get('stderr', 'N/A')[:OUTPUT_PREVIEW_LIMIT]}",
             title=f"Execution Result — {result.get('status', 'unknown')}",
             border_style=status,
         )

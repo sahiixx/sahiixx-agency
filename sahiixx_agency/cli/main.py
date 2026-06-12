@@ -23,6 +23,12 @@ app = typer.Typer(
     help="One Person Agency — Unified AI orchestration for all repos",
     rich_markup_mode="rich",
 )
+task_app = typer.Typer(
+    name="task",
+    help="Inspect and manage agency tasks",
+    rich_markup_mode="rich",
+)
+app.add_typer(task_app)
 console = Console()
 
 
@@ -66,7 +72,7 @@ def registry(
             modules = [m for m in modules if m.category == cat]
         except ValueError:
             console.print(f"[red]Unknown category: {category}[/red]")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from None
 
     if sort == "stars":
         modules.sort(key=lambda m: m.stars, reverse=True)
@@ -105,27 +111,102 @@ def registry(
 def dispatch(
     intent: str = typer.Argument(..., help="Natural language intent to dispatch"),
     payload: str = typer.Option("{}", "--payload", "-p", help="JSON payload string"),
+    no_wait: bool = typer.Option(False, "--no-wait", help="Return immediately with the pending task id"),
 ) -> None:
     """Dispatch a task through the agency."""
     engine = AgencyEngine(_load_config())
     data: dict[str, Any] = json.loads(payload)
-    with console.status(f"[bold yellow]Routing: {intent}"):
-        task = asyncio.run(engine.dispatch(intent, data))
 
-    if task.module_id:
-        console.print(Panel(
-            f"Routed to [bold cyan]{task.module_id}[/bold cyan] ([italic]{task.category.value}[/italic])\n"
-            f"Result: {json.dumps(task.result, indent=2, default=str)}",
-            title=f"Task {task.id}",
-            border_style="green" if task.status.value == "completed" else "red",
-        ))
-    else:
-        console.print(Panel(
-            f"No module matched. Category: {task.category.value}\n"
-            f"Result: {json.dumps(task.result, indent=2, default=str)}",
-            title=f"Task {task.id}",
-            border_style="yellow",
-        ))
+    async def _run() -> None:
+        await engine.start_worker()
+        try:
+            task = await engine.dispatch(intent, data)
+            if no_wait:
+                console.print(
+                    Panel(
+                        f"Task [bold cyan]{task.id}[/bold cyan] dispatched\nStatus: [bold]{task.status.value}[/bold]",
+                        title="Dispatched",
+                        border_style="yellow",
+                    )
+                )
+                return
+
+            with console.status(f"[bold yellow]Executing: {intent}"):
+                for _ in range(240):  # 2 minute max wait
+                    current = engine.get_task(task.id)
+                    if current.status.value in ("completed", "failed", "cancelled"):
+                        break
+                    await asyncio.sleep(0.5)
+
+            final = engine.get_task(task.id)
+            if final.module_id:
+                console.print(
+                    Panel(
+                        f"Routed to [bold cyan]{final.module_id}[/bold cyan] ([italic]{final.category.value}[/italic])\n"
+                        f"Status: [bold]{final.status.value}[/bold]\n"
+                        f"Result: {json.dumps(final.result, indent=2, default=str)}",
+                        title=f"Task {final.id}",
+                        border_style="green" if final.status.value == "completed" else "red",
+                    )
+                )
+            else:
+                console.print(
+                    Panel(
+                        f"No module matched. Category: {final.category.value}\n"
+                        f"Status: [bold]{final.status.value}[/bold]\n"
+                        f"Result: {json.dumps(final.result, indent=2, default=str)}",
+                        title=f"Task {final.id}",
+                        border_style="yellow",
+                    )
+                )
+        finally:
+            await engine.stop_worker()
+
+    asyncio.run(_run())
+
+
+@task_app.command("status")
+def task_status(
+    task_id: str = typer.Argument(..., help="Task id to look up"),
+) -> None:
+    """Show the current status of a dispatched task."""
+    engine = AgencyEngine(_load_config())
+
+    async def _run() -> None:
+        await engine.start_worker()
+        try:
+            task = engine.get_task(task_id)
+            if task is None:
+                console.print(f"[red]Task '{task_id}' not found.[/red]")
+                raise typer.Exit(1)
+
+            result_preview = ""
+            if task.result:
+                result_preview = json.dumps(task.result, indent=2, default=str)[:2000]
+            error_preview = task.error or ""
+
+            console.print(
+                Panel(
+                    f"Status: [bold]{task.status.value}[/bold]\n"
+                    f"Created: {task.created_at}\n"
+                    f"Started: {task.started_at or 'N/A'}\n"
+                    f"Completed: {task.completed_at or 'N/A'}\n"
+                    f"Module: {task.module_id or 'N/A'}\n"
+                    f"Category: {task.category.value if task.category else 'N/A'}\n"
+                    f"\n[bold]Result:[/bold]\n{result_preview}\n"
+                    f"[bold]Error:[/bold]\n{error_preview}",
+                    title=f"Task {task.id}",
+                    border_style="green"
+                    if task.status.value == "completed"
+                    else "red"
+                    if task.status.value == "failed"
+                    else "yellow",
+                )
+            )
+        finally:
+            await engine.stop_worker()
+
+    asyncio.run(_run())
 
 
 @app.command()
@@ -135,14 +216,16 @@ def stats() -> None:
     s = engine.stats()
     reg = s["registry"]
 
-    console.print(Panel(
-        f"Modules: [bold]{reg['total_modules']}[/bold]\n"
-        f"Active: [bold green]{reg['active']}[/bold green]\n"
-        f"Total Stars: [bold yellow]{reg['total_stars']}[/bold yellow]\n"
-        f"Memory Events: [bold blue]{s['memory_events']}[/bold blue]",
-        title="Agency Stats",
-        border_style="cyan",
-    ))
+    console.print(
+        Panel(
+            f"Modules: [bold]{reg['total_modules']}[/bold]\n"
+            f"Active: [bold green]{reg['active']}[/bold green]\n"
+            f"Total Stars: [bold yellow]{reg['total_stars']}[/bold yellow]\n"
+            f"Memory Events: [bold blue]{s['memory_events']}[/bold blue]",
+            title="Agency Stats",
+            border_style="cyan",
+        )
+    )
 
     if reg["by_category"]:
         tree = Tree("[bold]Categories[/bold]")
@@ -165,12 +248,13 @@ def intel(
     engine = AgencyEngine(_load_config())
     with console.status(f"[bold blue]Running {report_type} scout..."):
         report = asyncio.run(engine.run_intel_scout(report_type))
-    console.print(Panel(
-        f"Found [bold]{len(report.repos)}[/bold] repos\n"
-        f"Queries: {', '.join(report.raw_queries)}",
-        title=f"Intel Report: {report.id}",
-        border_style="blue",
-    ))
+    console.print(
+        Panel(
+            f"Found [bold]{len(report.repos)}[/bold] repos\nQueries: {', '.join(report.raw_queries)}",
+            title=f"Intel Report: {report.id}",
+            border_style="blue",
+        )
+    )
     table = Table(box=box.SIMPLE)
     table.add_column("Repo", style="cyan")
     table.add_column("Stars", justify="right")
@@ -190,7 +274,9 @@ def serve(
     """Start the agency API server."""
     import uvicorn
 
-    console.print(Panel(f"Starting API at [bold]http://{host}:{port}[/bold]", title="Agency Server", border_style="green"))
+    console.print(
+        Panel(f"Starting API at [bold]http://{host}:{port}[/bold]", title="Agency Server", border_style="green")
+    )
     uvicorn.run("sahiixx_agency.api.main:app", host=host, port=port, reload=reload)
 
 
@@ -216,22 +302,26 @@ def exec(
 
     with console.status(f"[bold green]Cloning & running {module_id}..."):
         runner = RepoRunner(CloneManager())
-        result = asyncio.run(runner.run(module, command=data.get("command", "run"), env=data.get("env"), timeout=timeout))
+        result = asyncio.run(
+            runner.run(module, command=data.get("command", "run"), env=data.get("env"), timeout=timeout)
+        )
 
     status = "green" if result.get("status") == "success" else "red"
     inspection = result.get("inspection", {})
-    console.print(Panel(
-        f"Module: [bold]{module_id}[/bold]\n"
-        f"Category: {module.category.value}\n"
-        f"Entrypoint: {inspection.get('entrypoint', 'N/A')}\n"
-        f"Type: {inspection.get('type', 'N/A')}\n"
-        f"Return code: {result.get('returncode', 'N/A')}\n"
-        f"Command: {result.get('command', 'N/A')}\n"
-        f"\n[bold]stdout:[/bold]\n{result.get('stdout', 'N/A')[:2000]}\n"
-        f"[bold]stderr:[/bold]\n{result.get('stderr', 'N/A')[:2000]}",
-        title=f"Execution Result — {result.get('status', 'unknown')}",
-        border_style=status,
-    ))
+    console.print(
+        Panel(
+            f"Module: [bold]{module_id}[/bold]\n"
+            f"Category: {module.category.value}\n"
+            f"Entrypoint: {inspection.get('entrypoint', 'N/A')}\n"
+            f"Type: {inspection.get('type', 'N/A')}\n"
+            f"Return code: {result.get('returncode', 'N/A')}\n"
+            f"Command: {result.get('command', 'N/A')}\n"
+            f"\n[bold]stdout:[/bold]\n{result.get('stdout', 'N/A')[:2000]}\n"
+            f"[bold]stderr:[/bold]\n{result.get('stderr', 'N/A')[:2000]}",
+            title=f"Execution Result — {result.get('status', 'unknown')}",
+            border_style=status,
+        )
+    )
 
 
 @app.callback()

@@ -5,23 +5,65 @@ import asyncio
 import pytest
 
 from sahiixx_agency.core.engine import AgencyEngine
-from sahiixx_agency.core.models import AgencyConfig
+from sahiixx_agency.core.models import AgencyConfig, RepoCategory, RepoNode
 
 POLL_MAX_ATTEMPTS = 40
 POLL_INTERVAL = 0.25
 
+FAKE_MODULES = [
+    RepoNode(
+        id="echo-module",
+        name="echo-module",
+        full_name="sahiixx/echo-module",
+        url="https://github.com/sahiixx/echo-module",
+        category=RepoCategory.AGENT_FRAMEWORK,
+        language="python",
+        stars=10,
+        capabilities=["echo"],
+    ),
+    RepoNode(
+        id="friday",
+        name="friday",
+        full_name="sahiixx/friday",
+        url="https://github.com/sahiixx/friday",
+        category=RepoCategory.VOICE_AI,
+        language="python",
+        stars=50,
+        capabilities=["voice"],
+    ),
+]
+
 
 @pytest.fixture
-def engine(tmp_path):
+def engine(tmp_path, monkeypatch):
     config = AgencyConfig(data_dir=str(tmp_path))
-    return AgencyEngine(config)
+    eng = AgencyEngine(config)
+
+    async def fake_discover(username):
+        for mod in FAKE_MODULES:
+            eng.registry._modules[mod.id] = mod
+        return FAKE_MODULES
+
+    async def fake_run(module, command="run", env=None, timeout=60):
+        return {
+            "module": module.name,
+            "status": "success",
+            "returncode": 0,
+            "stdout": "ok",
+            "stderr": "",
+            "command": command,
+        }
+
+    monkeypatch.setattr(eng.registry, "discover", fake_discover)
+    monkeypatch.setattr(eng.runner, "run", fake_run)
+    return eng
 
 
 @pytest.mark.asyncio
 async def test_sync_repos(engine):
     discovered = await engine.sync_repos("sahiixx")
-    assert len(discovered) > 0
-    assert engine.registry.stats()["total_modules"] > 0
+    assert len(discovered) == 2
+    assert engine.registry.stats()["total_modules"] == 2
 
 
 @pytest.mark.asyncio
@@ -51,7 +93,17 @@ def test_registry_stats(engine):
 
 
 @pytest.mark.asyncio
-async def test_intel_scout(engine):
+async def test_intel_scout(engine, monkeypatch):
+    class FakeResponse:
+        status_code = 200
+
+        def json(self):
+            return {"items": []}
+
+    async def fake_get(self, url, **kwargs):
+        return FakeResponse()
+
+    monkeypatch.setattr("httpx.AsyncClient.get", fake_get)
     report = await engine.run_intel_scout("trending")
     assert report.id is not None
     assert len(report.repos) >= 0

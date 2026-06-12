@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -48,10 +49,8 @@ class AgencyEngine:
         self._running = False
         if self._worker_task is not None:
             self._worker_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._worker_task
-            except asyncio.CancelledError:
-                pass
             self._worker_task = None
 
     async def _worker_loop(self) -> None:
@@ -166,18 +165,16 @@ class AgencyEngine:
         min_stars: int = 50,
     ) -> IntelReport:
         """Run the GitHub intelligence scout."""
-        from datetime import datetime, timedelta
-
         headers = {"Accept": "application/vnd.github+json", "User-Agent": "sahiixx-agency"}
         if self.config.github_token:
             headers["Authorization"] = f"Bearer {self.config.github_token}"
 
         repos: list[RepoNode] = []
         queries: list[str] = []
+        week_ago = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
 
         async with __import__("httpx").AsyncClient(timeout=30) as client:
             if report_type in ("trending", "velocity"):
-                week_ago = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
                 q = f"created:>{week_ago} stars:>{min_stars}"
                 if languages:
                     q += " language:" + " language:".join(languages)

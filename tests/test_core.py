@@ -5,8 +5,7 @@ import asyncio
 import pytest
 
 from sahiixx_agency.core.engine import AgencyEngine
-from sahiixx_agency.core.models import AgencyConfig, RepoCategory
-from sahiixx_agency.core.registry import RepoRegistry
+from sahiixx_agency.core.models import AgencyConfig
 
 
 @pytest.fixture

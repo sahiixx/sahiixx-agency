@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import re
 import uuid
-from datetime import datetime, timezone
 from typing import Any
 
 from .bus import BusMessage, MessageBus
@@ -117,7 +116,8 @@ class TaskRouter:
             if mod.status.value in ("error", "inactive"):
                 continue
             score = 0.0
-            text = f"{mod.name} {mod.description or ""} {" ".join(mod.capabilities)}".lower()
+            parts = [mod.name, mod.description or "", *mod.capabilities]
+            text = " ".join(parts).lower()
             for word in words:
                 if word in text:
                     score += 1.0

@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
+from typing import Any, cast
 
 
 class AgencyMemory:
@@ -26,25 +26,21 @@ class AgencyMemory:
 
     def _init_sqlite(self) -> None:
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute(
-                """
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS memory (
                     key TEXT PRIMARY KEY,
                     value TEXT,
                     updated_at TEXT
                 )
-                """
-            )
-            conn.execute(
-                """
+                """)
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS events (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     topic TEXT,
                     payload TEXT,
                     created_at TEXT
                 )
-                """
-            )
+                """)
             conn.commit()
 
     def _load_json(self) -> None:
@@ -61,7 +57,7 @@ class AgencyMemory:
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute(
                     "INSERT OR REPLACE INTO memory (key, value, updated_at) VALUES (?, ?, ?)",
-                    (key, json.dumps(value), datetime.now(timezone.utc).isoformat()),
+                    (key, json.dumps(value), datetime.now(UTC).isoformat()),
                 )
                 conn.commit()
         else:
@@ -71,9 +67,7 @@ class AgencyMemory:
     def get(self, key: str, default: Any = None) -> Any:
         if self.backend == "sqlite":
             with sqlite3.connect(self.db_path) as conn:
-                row = conn.execute(
-                    "SELECT value FROM memory WHERE key = ?", (key,)
-                ).fetchone()
+                row = conn.execute("SELECT value FROM memory WHERE key = ?", (key,)).fetchone()
                 return json.loads(row[0]) if row else default
         return self._data.get(key, default)
 
@@ -82,12 +76,22 @@ class AgencyMemory:
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute(
                     "INSERT INTO events (topic, payload, created_at) VALUES (?, ?, ?)",
-                    (topic, json.dumps(payload), datetime.now(timezone.utc).isoformat()),
+                    (
+                        topic,
+                        json.dumps(payload),
+                        datetime.now(UTC).isoformat(),
+                    ),
                 )
                 conn.commit()
         else:
             events = self._data.setdefault("events", [])
-            events.append({"topic": topic, "payload": payload, "created_at": datetime.now(timezone.utc).isoformat()})
+            events.append(
+                {
+                    "topic": topic,
+                    "payload": payload,
+                    "created_at": datetime.now(UTC).isoformat(),
+                }
+            )
             self._save_json()
 
     def recent_events(self, topic: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
@@ -104,7 +108,7 @@ class AgencyMemory:
                         (limit,),
                     ).fetchall()
                 return [{"topic": r[0], "payload": json.loads(r[1]), "created_at": r[2]} for r in rows]
-        events = self._data.get("events", [])
+        events = cast(list[dict[str, Any]], self._data.get("events", []))
         if topic:
             events = [e for e in events if e.get("topic") == topic]
         return events[-limit:]

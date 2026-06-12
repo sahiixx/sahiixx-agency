@@ -6,6 +6,8 @@ import DetailDrawer from '@/components/DetailDrawer'
 import StatsDashboard from '@/components/StatsDashboard'
 import PatternBar from '@/components/PatternBar'
 import GraphCanvas from '@/components/graph/GraphCanvas'
+import StatusCard from '@/components/StatusCard'
+import TaskQueue from '@/components/TaskQueue'
 import {
   loadGraphData,
   type RepoNode,
@@ -164,6 +166,8 @@ export default function Home() {
         }}
       />
 
+      <StatusCard />
+
       <PatternBar activePattern={activePattern} onPatternToggle={handlePatternToggle} />
 
       <GraphCanvas
@@ -196,6 +200,8 @@ export default function Home() {
       />
 
       <StatsDashboard />
+
+      <TaskQueue />
 
       {/* Tooltip */}
       {hoveredRepo && !selectedRepo && (

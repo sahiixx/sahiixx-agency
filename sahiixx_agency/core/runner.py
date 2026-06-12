@@ -6,10 +6,9 @@ import json
 import os
 import shlex
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
-
-import httpx
 
 from .models import RepoNode
 
@@ -128,7 +127,13 @@ class RepoInspector:
 
         # Docker detection
         if (self.path / "Dockerfile").exists():
-            result["commands"]["docker"] = ["docker", "build", "-t", self.path.name, str(self.path)]
+            result["commands"]["docker"] = [
+                "docker",
+                "build",
+                "-t",
+                self.path.name,
+                str(self.path),
+            ]
 
         # Shell script detection
         sh_files = list(self.path.glob("*.sh"))
@@ -155,12 +160,92 @@ class RepoRunner:
     def __init__(self, clone_manager: CloneManager | None = None) -> None:
         self.clone_manager = clone_manager or CloneManager()
 
+    def _venv_path(self, repo_path: Path) -> Path:
+        return repo_path / ".venv"
+
+    def _venv_python(self, repo_path: Path) -> Path:
+        if os.name == "nt":
+            return self._venv_path(repo_path) / "Scripts" / "python.exe"
+        return self._venv_path(repo_path) / "bin" / "python"
+
+    def _install_python_dependencies(self, repo_path: Path) -> dict[str, Any]:
+        """Create an isolated venv and install Python dependencies."""
+        venv_path = self._venv_path(repo_path)
+        python = self._venv_python(repo_path)
+        installs: list[dict[str, Any]] = []
+
+        if not venv_path.exists():
+            result = subprocess.run(
+                [sys.executable, "-m", "venv", str(venv_path)],
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            installs.append({"tool": "venv", "command": "create", "returncode": result.returncode})
+
+        # Ensure pip is up to date in the target venv
+        subprocess.run(
+            [str(python), "-m", "pip", "install", "--upgrade", "pip"],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+
+        if (repo_path / "requirements.txt").exists():
+            result = subprocess.run(
+                [str(python), "-m", "pip", "install", "-r", "requirements.txt"],
+                cwd=str(repo_path),
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            installs.append(
+                {
+                    "tool": "pip",
+                    "file": "requirements.txt",
+                    "returncode": result.returncode,
+                }
+            )
+        elif (repo_path / "pyproject.toml").exists():
+            result = subprocess.run(
+                [str(python), "-m", "pip", "install", "-e", "."],
+                cwd=str(repo_path),
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            installs.append(
+                {
+                    "tool": "pip",
+                    "file": "pyproject.toml",
+                    "returncode": result.returncode,
+                }
+            )
+        elif (repo_path / "Pipfile").exists():
+            result = subprocess.run(
+                ["pipenv", "install", "--deploy"],
+                cwd=str(repo_path),
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            installs.append(
+                {
+                    "tool": "pipenv",
+                    "file": "Pipfile",
+                    "returncode": result.returncode,
+                }
+            )
+
+        return {"venv": str(venv_path), "installs": installs}
+
     async def run(
         self,
         node: RepoNode,
         command: str = "run",
         env: dict[str, str] | None = None,
         timeout: int = 60,
+        skip_install: bool = False,
     ) -> dict[str, Any]:
         """Clone (if needed), inspect, and run a repo."""
         # Clone
@@ -187,8 +272,9 @@ class RepoRunner:
             }
 
         # Install dependencies if needed
-        if meta["dependencies"] and meta.get("package_manager") == "npm":
-            if not (path / "node_modules").exists():
+        install_info: dict[str, Any] | None = None
+        if not skip_install and meta["dependencies"]:
+            if meta.get("package_manager") == "npm" and not (path / "node_modules").exists():
                 install_cmd = meta["commands"].get("install", ["npm", "install"])
                 subprocess.run(
                     install_cmd,
@@ -197,6 +283,11 @@ class RepoRunner:
                     text=True,
                     timeout=120,
                 )
+            elif meta.get("type") == "python":
+                install_info = self._install_python_dependencies(path)
+                # Replace system python with the venv python for execution
+                if self._venv_python(path).exists():
+                    cmd = [str(self._venv_python(path)), *cmd[1:]]
 
         # Run
         run_env = {**os.environ, **(env or {})}
@@ -209,7 +300,7 @@ class RepoRunner:
                 timeout=timeout,
                 env=run_env,
             )
-            return {
+            result: dict[str, Any] = {
                 "module": node.name,
                 "status": "success" if proc.returncode == 0 else "error",
                 "returncode": proc.returncode,
@@ -218,6 +309,9 @@ class RepoRunner:
                 "command": " ".join(shlex.quote(str(c)) for c in cmd),
                 "inspection": meta,
             }
+            if install_info is not None:
+                result["install"] = install_info
+            return result
         except subprocess.TimeoutExpired:
             return {
                 "module": node.name,

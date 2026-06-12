@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 from typing import Any
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import FastMCP  # type: ignore[import-not-found]
 
 from sahiixx_agency.core.engine import AgencyEngine
 from sahiixx_agency.core.models import AgencyConfig, RepoCategory
@@ -22,7 +21,7 @@ def _get_engine() -> AgencyEngine:
     return _engine
 
 
-@mcp.tool()
+@mcp.tool()  # type: ignore[untyped-decorator]
 async def list_modules(category: str | None = None) -> str:
     """List agency modules, optionally filtered by category."""
     engine = _get_engine()
@@ -36,57 +35,64 @@ async def list_modules(category: str | None = None) -> str:
     modules.sort(key=lambda m: m.stars, reverse=True)
     result = []
     for m in modules[:30]:
-        result.append({
-            "name": m.name,
-            "category": m.category.value,
-            "language": m.language,
-            "stars": m.stars,
-            "url": m.url,
-            "capabilities": m.capabilities,
-        })
+        result.append(
+            {
+                "name": m.name,
+                "category": m.category.value,
+                "language": m.language,
+                "stars": m.stars,
+                "url": m.url,
+                "capabilities": m.capabilities,
+            }
+        )
     return json.dumps(result, indent=2)
 
 
-@mcp.tool()
+@mcp.tool()  # type: ignore[untyped-decorator]
 async def dispatch_task(intent: str, payload: str = "{}") -> str:
     """Dispatch a task through the agency."""
     engine = _get_engine()
     data: dict[str, Any] = json.loads(payload)
     task = await engine.dispatch(intent, data)
-    return json.dumps({
-        "task_id": task.id,
-        "status": task.status.value,
-        "module": task.module_id,
-        "category": task.category.value if task.category else None,
-        "result": task.result,
-        "error": task.error,
-    }, indent=2)
+    return json.dumps(
+        {
+            "task_id": task.id,
+            "status": task.status.value,
+            "module": task.module_id,
+            "category": task.category.value if task.category else None,
+            "result": task.result,
+            "error": task.error,
+        },
+        indent=2,
+    )
 
 
-@mcp.tool()
+@mcp.tool()  # type: ignore[untyped-decorator]
 async def run_intel_scout(report_type: str = "trending") -> str:
     """Run the GitHub intelligence scout."""
     engine = _get_engine()
     report = await engine.run_intel_scout(report_type)
-    return json.dumps({
-        "report_id": report.id,
-        "type": report.report_type,
-        "repos_found": len(report.repos),
-        "summary": report.summary,
-        "top_repos": [
-            {"name": r.name, "stars": r.stars, "language": r.language, "url": r.url}
-            for r in report.repos[:10]
-        ],
-    }, indent=2)
+    return json.dumps(
+        {
+            "report_id": report.id,
+            "type": report.report_type,
+            "repos_found": len(report.repos),
+            "summary": report.summary,
+            "top_repos": [
+                {"name": r.name, "stars": r.stars, "language": r.language, "url": r.url} for r in report.repos[:10]
+            ],
+        },
+        indent=2,
+    )
 
 
-@mcp.tool()
+@mcp.tool()  # type: ignore[untyped-decorator]
 async def agency_stats() -> str:
     """Get agency statistics."""
     return json.dumps(_get_engine().stats(), indent=2)
 
 
-@mcp.tool()
+@mcp.tool()  # type: ignore[untyped-decorator]
 async def sync_registry(username: str = "sahiixx") -> str:
     """Sync GitHub repos into the agency registry."""
     engine = _get_engine()

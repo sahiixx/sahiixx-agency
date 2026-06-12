@@ -1,9 +1,21 @@
-.PHONY: install sync serve dev dashboard build test clean
+.PHONY: install setup-dev sync serve dev dashboard build test lint format clean
 
 install:
 	python3 -m venv .venv
 	.venv/bin/pip install -e "."
 	cd dashboard && npm install
+
+setup-dev:
+	bash scripts/setup-dev.sh
+
+format:
+	black sahiixx_agency tests
+	cd dashboard && npm run format
+
+lint:
+	ruff check sahiixx_agency tests
+	mypy sahiixx_agency
+	cd dashboard && npm run lint
 
 sync:
 	.venv/bin/op sync
@@ -24,7 +36,7 @@ mcp:
 	.venv/bin/python -m sahiixx_agency.mcp_server.main
 
 test:
-	.venv/bin/pytest tests/ -v
+	pytest tests/ -v
 
 clean:
 	rm -rf .venv data __pycache__ .pytest_cache dashboard/dist dashboard/node_modules

@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
 
 from .models import ModuleStatus, RepoCategory, RepoNode
-
 
 # Keywords → category mapping
 CATEGORY_RULES: list[tuple[RepoCategory, list[str]]] = [
@@ -156,7 +155,7 @@ class RepoRegistry:
 
     def _save(self) -> None:
         payload = {
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(UTC).isoformat(),
             "module_count": len(self._modules),
             "modules": [m.model_dump(mode="json") for m in self._modules.values()],
         }
@@ -175,7 +174,10 @@ class RepoRegistry:
 
     async def discover(self, username: str = "sahiixx", per_page: int = 100) -> list[RepoNode]:
         """Fetch all public repos for a GitHub user and register them."""
-        headers = {"Accept": "application/vnd.github+json", "User-Agent": "sahiixx-agency"}
+        headers = {
+            "Accept": "application/vnd.github+json",
+            "User-Agent": "sahiixx-agency",
+        }
         if self.github_token:
             headers["Authorization"] = f"Bearer {self.github_token}"
 

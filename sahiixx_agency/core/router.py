@@ -1,13 +1,21 @@
 """Task router - matches intents to the best agency module."""
+
 from __future__ import annotations
 
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from .bus import BusMessage, MessageBus
-from .models import AgencyConfig, AgencyTask, RepoCategory, RepoNode, RoutingRule, TaskStatus
+from .models import (
+    AgencyConfig,
+    AgencyTask,
+    RepoCategory,
+    RepoNode,
+    RoutingRule,
+    TaskStatus,
+)
 from .registry import RepoRegistry
 
 
@@ -31,8 +39,7 @@ class TaskRouter:
         self.config = config or AgencyConfig()
         # Pre-compile routing rule patterns for efficiency
         self._compiled_rules: list[tuple[re.Pattern[str], RoutingRule]] = [
-            (re.compile(rule.pattern, re.IGNORECASE), rule)
-            for rule in self.config.routing_rules
+            (re.compile(rule.pattern, re.IGNORECASE), rule) for rule in self.config.routing_rules
         ]
 
     async def route(self, intent: str, payload: dict[str, Any] | None = None) -> AgencyTask:
@@ -59,7 +66,7 @@ class TaskRouter:
                 task.category = self._infer_category(intent)
 
         task.status = TaskStatus.RUNNING
-        task.started_at = datetime.now(timezone.utc)
+        task.started_at = datetime.now(UTC)
 
         await self.bus.publish(
             BusMessage(
@@ -118,7 +125,7 @@ class TaskRouter:
             if mod.status.value in ("error", "inactive"):
                 continue
             score = 0.0
-            text = f"{mod.name} {mod.description or ""} {" ".join(mod.capabilities)}".lower()
+            text = f"{mod.name} {mod.description or ''} {' '.join(mod.capabilities)}".lower()
             for word in words:
                 if word in text:
                     score += 1.0
@@ -136,7 +143,10 @@ class TaskRouter:
         intent_lower = intent.lower()
         for category, keywords in [
             (RepoCategory.VOICE_AI, ["voice", "speech", "audio", "call", "phone"]),
-            (RepoCategory.REAL_ESTATE, ["property", "real estate", "dubai", "lead", "deal"]),
+            (
+                RepoCategory.REAL_ESTATE,
+                ["property", "real estate", "dubai", "lead", "deal"],
+            ),
             (RepoCategory.SECURITY, ["security", "audit", "pentest", "cve", "scan"]),
             (RepoCategory.AGENT_FRAMEWORK, ["agent", "llm", "ai", "swarm", "bot"]),
             (RepoCategory.MCP_TOOL, ["tool", "mcp", "workflow", "automation"]),

@@ -1,14 +1,15 @@
 """Pydantic models for the agency domain."""
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from enum import Enum
+from datetime import UTC, datetime
+from enum import StrEnum
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
 
-class ModuleStatus(str, Enum):
+class ModuleStatus(StrEnum):
     """Lifecycle status of an agency module."""
 
     DISCOVERED = "discovered"
@@ -18,7 +19,7 @@ class ModuleStatus(str, Enum):
     ERROR = "error"
 
 
-class TaskStatus(str, Enum):
+class TaskStatus(StrEnum):
     """Status of an agency task."""
 
     PENDING = "pending"
@@ -29,7 +30,7 @@ class TaskStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
-class RepoCategory(str, Enum):
+class RepoCategory(StrEnum):
     """Canonical categories for repos."""
 
     AGENT_FRAMEWORK = "agent_framework"
@@ -92,7 +93,7 @@ class AgencyTask(BaseModel):
     payload: dict[str, Any] = Field(default_factory=dict)
     result: dict[str, Any] | None = Field(default=None)
     error: str | None = Field(default=None)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     started_at: datetime | None = Field(default=None)
     completed_at: datetime | None = Field(default=None)
     parent_id: str | None = Field(default=None)
@@ -106,7 +107,7 @@ class BusMessage(BaseModel):
     topic: str
     sender: str
     payload: dict[str, Any] = Field(default_factory=dict)
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
     correlation_id: str | None = Field(default=None)
     priority: int = Field(default=0)
 
@@ -121,7 +122,7 @@ class IntelReport(BaseModel):
     raw_queries: list[str] = Field(default_factory=list)
     threats: list[str] = Field(default_factory=list)
     opportunities: list[str] = Field(default_factory=list)
-    generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class AgencyConfig(BaseModel):

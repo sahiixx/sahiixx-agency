@@ -32,7 +32,44 @@ class AgencyEngine:
         )
         self.runner = RepoRunner(CloneManager(os.path.join(self.config.data_dir, "repos")))
         self._running = False
+        self._worker_task: asyncio.Task[Any] | None = None
         self._task_queue: asyncio.Queue[AgencyTask] = asyncio.Queue()
+        self._tasks: dict[str, AgencyTask] = {}
+
+    async def start_worker(self) -> None:
+        if self._running:
+            return
+        self._running = True
+        self._worker_task = asyncio.create_task(self._worker_loop())
+
+    async def stop_worker(self) -> None:
+        if not self._running:
+            return
+        self._running = False
+        if self._worker_task is not None:
+            self._worker_task.cancel()
+            try:
+                await self._worker_task
+            except asyncio.CancelledError:
+                pass
+            self._worker_task = None
+
+    async def _worker_loop(self) -> None:
+        while self._running:
+            try:
+                task = await asyncio.wait_for(self._task_queue.get(), timeout=0.5)
+            except asyncio.TimeoutError:
+                continue
+            except asyncio.CancelledError:
+                break
+            await self._execute_task(task)
+
+    def get_task(self, task_id: str) -> AgencyTask | None:
+        return self._tasks.get(task_id)
+
+    def list_tasks(self, limit: int = 50) -> list[AgencyTask]:
+        sorted_tasks = sorted(self._tasks.values(), key=lambda t: t.created_at, reverse=True)
+        return sorted_tasks[:limit]
 
     async def sync_repos(self, username: str | None = None) -> list[RepoNode]:
         """Sync all GitHub repos into the registry."""
@@ -44,8 +81,9 @@ class AgencyEngine:
     async def dispatch(self, intent: str, payload: dict[str, Any] | None = None) -> AgencyTask:
         """Dispatch a task through the agency."""
         task = await self.router.route(intent, payload)
+        self._tasks[task.id] = task
         self.memory.log_event("task.created", {"task_id": task.id, "intent": intent})
-        await self._execute_task(task)
+        await self._task_queue.put(task)
         return task
 
     async def _execute_task(self, task: AgencyTask) -> None:

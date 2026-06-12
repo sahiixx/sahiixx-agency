@@ -58,8 +58,7 @@ class TaskRouter:
             else:
                 task.category = self._infer_category(intent)
 
-        task.status = TaskStatus.RUNNING
-        task.started_at = datetime.now(timezone.utc)
+        task.status = TaskStatus.PENDING
 
         await self.bus.publish(
             BusMessage(

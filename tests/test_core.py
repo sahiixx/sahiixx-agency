@@ -1,5 +1,7 @@
 """Tests for the One Person Agency core."""
 
+import asyncio
+
 import pytest
 
 from sahiixx_agency.core.engine import AgencyEngine
@@ -25,7 +27,7 @@ async def test_dispatch_task(engine):
     await engine.sync_repos("sahiixx")
     task = await engine.dispatch("run voice assistant")
     assert task.id is not None
-    assert task.status.value in ("running", "completed", "failed")
+    assert task.status.value in ("pending", "running", "completed", "failed")
 
 
 def test_registry_stats(engine):
@@ -48,3 +50,23 @@ async def test_execute_module(engine):
     result = await engine.runner.run(module, timeout=15)
     assert "status" in result
     assert result["module"] == module.name
+
+
+@pytest.mark.asyncio
+async def test_dispatch_returns_pending_and_worker_completes(engine):
+    await engine.start_worker()
+    try:
+        await engine.sync_repos("sahiixx")
+        task = await engine.dispatch("run voice assistant")
+        assert task.status.value == "pending"
+        # Poll until terminal (timeout protects against hangs)
+        for _ in range(40):
+            current = engine.get_task(task.id)
+            assert current is not None
+            if current.status.value in ("completed", "failed"):
+                break
+            await asyncio.sleep(0.25)
+        final = engine.get_task(task.id)
+        assert final.status.value in ("completed", "failed")
+    finally:
+        await engine.stop_worker()

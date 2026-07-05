@@ -1,0 +1,460 @@
+{
+  "modules": [
+    {
+      "id": "sahiixx-bus",
+      "name": "sahiixx-bus",
+      "owner": "sahiixx",
+      "full_name": "sahiixx/sahiixx-bus",
+      "url": "https://github.com/sahiixx/sahiixx-bus",
+      "clone_url": "https://github.com/sahiixx/sahiixx-bus.git",
+      "description": "Central pub/sub message bus and MCP gateway",
+      "language": "Python",
+      "languages": {
+        "Python": 100
+      },
+      "stars": 0,
+      "forks": 0,
+      "is_fork": false,
+      "is_private": false,
+      "category": "infrastructure",
+      "subcategories": [],
+      "status": "active",
+      "capabilities": [
+        "pub/sub",
+        "mcp",
+        "gateway"
+      ],
+      "topics": [
+        "bus",
+        "messaging"
+      ],
+      "manifest": {},
+      "adapter_config": {},
+      "local_path": null,
+      "last_synced": null,
+      "created_at": "2026-01-01T00:00:00",
+      "updated_at": "2026-06-01T00:00:00",
+      "pushed_at": "2026-06-01T00:00:00"
+    },
+    {
+      "id": "sahiixx-agency",
+      "name": "sahiixx-agency",
+      "owner": "sahiixx",
+      "full_name": "sahiixx/sahiixx-agency",
+      "url": "https://github.com/sahiixx/sahiixx-agency",
+      "clone_url": "https://github.com/sahiixx/sahiixx-agency.git",
+      "description": "OPA orchestrator \u2014 auto-discovery and smart routing for 170+ repos",
+      "language": "Python",
+      "languages": {
+        "Python": 85,
+        "TypeScript": 15
+      },
+      "stars": 0,
+      "forks": 0,
+      "is_fork": false,
+      "is_private": false,
+      "category": "infrastructure",
+      "subcategories": [],
+      "status": "active",
+      "capabilities": [
+        "orchestration",
+        "routing",
+        "discovery",
+        "cli",
+        "api",
+        "mcp"
+      ],
+      "topics": [
+        "agency",
+        "orchestrator",
+        "ai"
+      ],
+      "manifest": {},
+      "adapter_config": {},
+      "local_path": null,
+      "last_synced": null,
+      "created_at": "2026-01-01T00:00:00",
+      "updated_at": "2026-06-01T00:00:00",
+      "pushed_at": "2026-06-01T00:00:00"
+    },
+    {
+      "id": "sahiixx-titans-memory",
+      "name": "sahiixx-titans-memory",
+      "owner": "sahiixx",
+      "full_name": "sahiixx/sahiixx-titans-memory",
+      "url": "https://github.com/sahiixx/sahiixx-titans-memory",
+      "clone_url": "https://github.com/sahiixx/sahiixx-titans-memory.git",
+      "description": "Surprise-weighted persistent memory (Titans NeurIPS 2025)",
+      "language": "Python",
+      "languages": {
+        "Python": 100
+      },
+      "stars": 0,
+      "forks": 0,
+      "is_fork": false,
+      "is_private": false,
+      "category": "agent_framework",
+      "subcategories": [],
+      "status": "active",
+      "capabilities": [
+        "memory",
+        "ai",
+        "titan"
+      ],
+      "topics": [
+        "memory",
+        "ai",
+        "titan"
+      ],
+      "manifest": {},
+      "adapter_config": {},
+      "local_path": null,
+      "last_synced": null,
+      "created_at": "2026-01-01T00:00:00",
+      "updated_at": "2026-06-01T00:00:00",
+      "pushed_at": "2026-06-01T00:00:00"
+    },
+    {
+      "id": "sahiixx-graph-sight",
+      "name": "sahiixx-graph-sight",
+      "owner": "sahiixx",
+      "full_name": "sahiixx/sahiixx-graph-sight",
+      "url": "https://github.com/sahiixx/sahiixx-graph-sight",
+      "clone_url": "https://github.com/sahiixx/sahiixx-graph-sight.git",
+      "description": "Neo4j trust graph + AST code context engine",
+      "language": "Python",
+      "languages": {
+        "Python": 90,
+        "Cypher": 10
+      },
+      "stars": 0,
+      "forks": 0,
+      "is_fork": false,
+      "is_private": false,
+      "category": "agent_framework",
+      "subcategories": [],
+      "status": "active",
+      "capabilities": [
+        "graph",
+        "neo4j",
+        "context",
+        "trust"
+      ],
+      "topics": [
+        "graph",
+        "neo4j",
+        "context"
+      ],
+      "manifest": {},
+      "adapter_config": {},
+      "local_path": null,
+      "last_synced": null,
+      "created_at": "2026-01-01T00:00:00",
+      "updated_at": "2026-06-01T00:00:00",
+      "pushed_at": "2026-06-01T00:00:00"
+    },
+    {
+      "id": "sovereign-swarm-v2",
+      "name": "sovereign-swarm-v2",
+      "owner": "sahiixx",
+      "full_name": "sahiixx/sovereign-swarm-v2",
+      "url": "https://github.com/sahiixx/sovereign-swarm-v2",
+      "clone_url": "https://github.com/sahiixx/sovereign-swarm-v2.git",
+      "description": "Modular multi-agent OS \u2014 Dubai RE, n8n, Telegram bot",
+      "language": "Python",
+      "languages": {
+        "Python": 100
+      },
+      "stars": 0,
+      "forks": 0,
+      "is_fork": false,
+      "is_private": false,
+      "category": "agent_framework",
+      "subcategories": [],
+      "status": "active",
+      "capabilities": [
+        "swarm",
+        "multi-agent",
+        "dubai",
+        "real-estate"
+      ],
+      "topics": [
+        "swarm",
+        "multi-agent",
+        "dubai"
+      ],
+      "manifest": {},
+      "adapter_config": {},
+      "local_path": null,
+      "last_synced": null,
+      "created_at": "2026-01-01T00:00:00",
+      "updated_at": "2026-06-01T00:00:00",
+      "pushed_at": "2026-06-01T00:00:00"
+    },
+    {
+      "id": "friday-os",
+      "name": "friday-os",
+      "owner": "sahiixx",
+      "full_name": "sahiixx/friday-os",
+      "url": "https://github.com/sahiixx/friday-os",
+      "clone_url": "https://github.com/sahiixx/friday-os.git",
+      "description": "Voice-first AI OS (PERCEIVE \u2192 ROUTE \u2192 PLAN \u2192 EXECUTE pipeline)",
+      "language": "Python",
+      "languages": {
+        "Python": 100
+      },
+      "stars": 0,
+      "forks": 0,
+      "is_fork": false,
+      "is_private": false,
+      "category": "voice_ai",
+      "subcategories": [],
+      "status": "active",
+      "capabilities": [
+        "voice",
+        "assistant",
+        "personal-ai",
+        "livekit"
+      ],
+      "topics": [
+        "voice",
+        "assistant",
+        "personal-ai"
+      ],
+      "manifest": {},
+      "adapter_config": {},
+      "local_path": null,
+      "last_synced": null,
+      "created_at": "2026-01-01T00:00:00",
+      "updated_at": "2026-06-01T00:00:00",
+      "pushed_at": "2026-06-01T00:00:00"
+    },
+    {
+      "id": "sahiix-agi",
+      "name": "sahiix-agi",
+      "owner": "sahiixx",
+      "full_name": "sahiixx/sahiix-agi",
+      "url": "https://github.com/sahiixx/sahiix-agi",
+      "clone_url": "https://github.com/sahiixx/sahiix-agi.git",
+      "description": "AGI coordination layer \u2014 FastAPI + Redis + Qdrant",
+      "language": "Python",
+      "languages": {
+        "Python": 100
+      },
+      "stars": 0,
+      "forks": 0,
+      "is_fork": false,
+      "is_private": false,
+      "category": "agent_framework",
+      "subcategories": [],
+      "status": "active",
+      "capabilities": [
+        "agi",
+        "coordination",
+        "redis",
+        "qdrant"
+      ],
+      "topics": [
+        "agi",
+        "coordination",
+        "redis"
+      ],
+      "manifest": {},
+      "adapter_config": {},
+      "local_path": null,
+      "last_synced": null,
+      "created_at": "2026-01-01T00:00:00",
+      "updated_at": "2026-06-01T00:00:00",
+      "pushed_at": "2026-06-01T00:00:00"
+    },
+    {
+      "id": "sahiixx-clearwing",
+      "name": "sahiixx-clearwing",
+      "owner": "sahiixx",
+      "full_name": "sahiixx/sahiixx-clearwing",
+      "url": "https://github.com/sahiixx/sahiixx-clearwing",
+      "clone_url": "https://github.com/sahiixx/sahiixx-clearwing.git",
+      "description": "Autonomous pentesting swarm \u2014 5-agent active fuzzing",
+      "language": "Python",
+      "languages": {
+        "Python": 100
+      },
+      "stars": 0,
+      "forks": 0,
+      "is_fork": false,
+      "is_private": false,
+      "category": "security",
+      "subcategories": [],
+      "status": "active",
+      "capabilities": [
+        "security",
+        "pentest",
+        "swarm",
+        "ollama"
+      ],
+      "topics": [
+        "security",
+        "pentest",
+        "swarm"
+      ],
+      "manifest": {},
+      "adapter_config": {},
+      "local_path": null,
+      "last_synced": null,
+      "created_at": "2026-01-01T00:00:00",
+      "updated_at": "2026-06-01T00:00:00",
+      "pushed_at": "2026-06-01T00:00:00"
+    },
+    {
+      "id": "sahiixx-geoflow-agent",
+      "name": "sahiixx-geoflow-agent",
+      "owner": "sahiixx",
+      "full_name": "sahiixx/sahiixx-geoflow-agent",
+      "url": "https://github.com/sahiixx/sahiixx-geoflow-agent",
+      "clone_url": "https://github.com/sahiixx/sahiixx-geoflow-agent.git",
+      "description": "GEO optimization for Dubai real estate listings",
+      "language": "Python",
+      "languages": {
+        "Python": 100
+      },
+      "stars": 0,
+      "forks": 0,
+      "is_fork": false,
+      "is_private": false,
+      "category": "real_estate",
+      "subcategories": [],
+      "status": "active",
+      "capabilities": [
+        "geo",
+        "dubai",
+        "real-estate",
+        "scraping",
+        "neo4j"
+      ],
+      "topics": [
+        "geo",
+        "dubai",
+        "real-estate"
+      ],
+      "manifest": {},
+      "adapter_config": {},
+      "local_path": null,
+      "last_synced": null,
+      "created_at": "2026-01-01T00:00:00",
+      "updated_at": "2026-06-01T00:00:00",
+      "pushed_at": "2026-06-01T00:00:00"
+    },
+    {
+      "id": "saas-agent-platform",
+      "name": "saas-agent-platform",
+      "owner": "sahiixx",
+      "full_name": "sahiixx/saas-agent-platform",
+      "url": "https://github.com/sahiixx/saas-agent-platform",
+      "clone_url": "https://github.com/sahiixx/saas-agent-platform.git",
+      "description": "Multi-tenant agent SaaS (Hermes + MCP + SQLite)",
+      "language": "Python",
+      "languages": {
+        "Python": 100
+      },
+      "stars": 0,
+      "forks": 0,
+      "is_fork": false,
+      "is_private": false,
+      "category": "os_platform",
+      "subcategories": [],
+      "status": "active",
+      "capabilities": [
+        "saas",
+        "multi-tenant",
+        "hermes",
+        "fastapi"
+      ],
+      "topics": [
+        "saas",
+        "multi-tenant",
+        "hermes"
+      ],
+      "manifest": {},
+      "adapter_config": {},
+      "local_path": null,
+      "last_synced": null,
+      "created_at": "2026-01-01T00:00:00",
+      "updated_at": "2026-06-01T00:00:00",
+      "pushed_at": "2026-06-01T00:00:00"
+    },
+    {
+      "id": "sahiix-os",
+      "name": "sahiix-os",
+      "owner": "sahiixx",
+      "full_name": "sahiixx/sahiix-os",
+      "url": "https://github.com/sahiixx/sahiix-os",
+      "clone_url": "https://github.com/sahiixx/sahiix-os.git",
+      "description": "AI-powered real estate automation workspace UI",
+      "language": "TypeScript",
+      "languages": {
+        "TypeScript": 100
+      },
+      "stars": 0,
+      "forks": 0,
+      "is_fork": false,
+      "is_private": false,
+      "category": "os_platform",
+      "subcategories": [],
+      "status": "active",
+      "capabilities": [
+        "ui",
+        "real-estate",
+        "automation"
+      ],
+      "topics": [
+        "ui",
+        "real-estate",
+        "automation"
+      ],
+      "manifest": {},
+      "adapter_config": {},
+      "local_path": null,
+      "last_synced": null,
+      "created_at": "2026-01-01T00:00:00",
+      "updated_at": "2026-06-01T00:00:00",
+      "pushed_at": "2026-06-01T00:00:00"
+    },
+    {
+      "id": "moltworker",
+      "name": "moltworker",
+      "owner": "sahiixx",
+      "full_name": "sahiixx/moltworker",
+      "url": "https://github.com/sahiixx/moltworker",
+      "clone_url": "https://github.com/sahiixx/moltworker.git",
+      "description": "OpenClaw runtime on Cloudflare Workers",
+      "language": "TypeScript",
+      "languages": {
+        "TypeScript": 100
+      },
+      "stars": 0,
+      "forks": 0,
+      "is_fork": false,
+      "is_private": false,
+      "category": "infrastructure",
+      "subcategories": [],
+      "status": "active",
+      "capabilities": [
+        "cloudflare",
+        "workers",
+        "openclaw"
+      ],
+      "topics": [
+        "cloudflare",
+        "workers",
+        "openclaw"
+      ],
+      "manifest": {},
+      "adapter_config": {},
+      "local_path": null,
+      "last_synced": null,
+      "created_at": "2026-01-01T00:00:00",
+      "updated_at": "2026-06-01T00:00:00",
+      "pushed_at": "2026-06-01T00:00:00"
+    }
+  ]
+}

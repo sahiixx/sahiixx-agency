@@ -11,7 +11,9 @@ dist/
 build/
 
 # Data
-data/
+data/*.db
+data/*.sqlite
+data/*.sqlite3
 *.db
 *.sqlite
 *.sqlite3

@@ -231,6 +231,16 @@ class HtmlAnythingAdapter:
         if simulate or not self.repo_dir.exists():
             return self._simulate(project_dir, brief, surface)
 
+        install_result = self._run_subprocess(project_dir, [*self._find_pnpm(), "install"])
+        if not install_result.ok:
+            if self.fallback_on_failure:
+                simulated = self._simulate(project_dir, brief, surface)
+                simulated.metadata["original_error"] = install_result.stderr[:500]
+                simulated.metadata["original_status"] = install_result.status
+                simulated.metadata["note"] = "pnpm install failed"
+                return simulated
+            return install_result
+
         command = self._build_command(project_dir, surface)
         result = self._run_subprocess(project_dir, command)
         if not result.ok and self.fallback_on_failure:

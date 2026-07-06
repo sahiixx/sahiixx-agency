@@ -6,6 +6,7 @@ import DetailDrawer from '@/components/DetailDrawer'
 import StatsDashboard from '@/components/StatsDashboard'
 import PatternBar from '@/components/PatternBar'
 import GraphCanvas from '@/components/graph/GraphCanvas'
+import { TrendingPanel } from '@/components/discovery/TrendingPanel'
 import {
   loadGraphData,
   type RepoNode,
@@ -196,6 +197,10 @@ export default function Home() {
       />
 
       <StatsDashboard />
+
+      <aside className="fixed top-32 right-4 z-30 w-80 max-h-[calc(100dvh-9rem)] overflow-y-auto p-4">
+        <TrendingPanel />
+      </aside>
 
       {/* Tooltip */}
       {hoveredRepo && !selectedRepo && (

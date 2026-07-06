@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from .bus import MessageBus
@@ -57,7 +57,7 @@ class AgencyEngine:
         while self._running:
             try:
                 task = await asyncio.wait_for(self._task_queue.get(), timeout=0.5)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 continue
             except asyncio.CancelledError:
                 break
@@ -88,7 +88,7 @@ class AgencyEngine:
     async def _execute_task(self, task: AgencyTask) -> None:
         """Execute a task by cloning and running the target module."""
         task.status = TaskStatus.RUNNING
-        task.started_at = task.started_at or datetime.now(timezone.utc)
+        task.started_at = task.started_at or datetime.now(UTC)
         self.memory.log_event("task.running", {"task_id": task.id})
 
         try:
@@ -99,11 +99,39 @@ class AgencyEngine:
                         # Use the safety-hardened T3MP3ST MCP adapter
                         from sahiixx_agency.adapters.security.t3mp3st_mcp import T3mp3stMcpAdapter
 
-                        adapter = T3mp3stMcpAdapter(
+                        t3mp3st_adapter = T3mp3stMcpAdapter(
                             clone_base_dir=os.path.join(self.config.data_dir, "repos"),
                             approval_token=self.config.t3mp3st_approval_token,
                         )
-                        run_result = await adapter.run(mod, task.payload)
+                        run_result = await t3mp3st_adapter.run(mod, task.payload)
+                        task.result = {
+                            "module": mod.name,
+                            "category": mod.category.value,
+                            "url": mod.url,
+                            "capabilities": mod.capabilities,
+                            "execution": run_result,
+                        }
+                    elif task.module_id.lower() == "career-ops":
+                        from sahiixx_agency.adapters.career.career_ops_adapter import CareerOpsAdapter
+
+                        career_adapter = CareerOpsAdapter(
+                            clone_base_dir=os.path.join(self.config.data_dir, "repos"),
+                        )
+                        run_result = await career_adapter.run(mod, task.payload)
+                        task.result = {
+                            "module": mod.name,
+                            "category": mod.category.value,
+                            "url": mod.url,
+                            "capabilities": mod.capabilities,
+                            "execution": run_result,
+                        }
+                    elif task.module_id.lower() == "hiring-agent":
+                        from sahiixx_agency.adapters.hiring.hiring_agent_adapter import HiringAgentAdapter
+
+                        hiring_adapter = HiringAgentAdapter(
+                            clone_base_dir=os.path.join(self.config.data_dir, "repos"),
+                        )
+                        run_result = await hiring_adapter.run(mod, task.payload)
                         task.result = {
                             "module": mod.name,
                             "category": mod.category.value,
@@ -141,7 +169,7 @@ class AgencyEngine:
                     }
 
             task.status = TaskStatus.COMPLETED
-            task.completed_at = datetime.now(timezone.utc)
+            task.completed_at = datetime.now(UTC)
             self.memory.log_event("task.completed", {"task_id": task.id})
         except Exception as exc:
             task.status = TaskStatus.FAILED
@@ -188,7 +216,7 @@ class AgencyEngine:
 
         repos: list[RepoNode] = []
         queries: list[str] = []
-        week_ago = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
+        week_ago = (datetime.now(UTC) - timedelta(days=7)).strftime("%Y-%m-%d")
 
         async with __import__("httpx").AsyncClient(timeout=30) as client:
             if report_type in ("trending", "velocity"):

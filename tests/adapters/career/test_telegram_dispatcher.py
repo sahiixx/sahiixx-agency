@@ -145,9 +145,9 @@ def test_run_bot_requires_token(monkeypatch) -> None:
 def test_run_bot_uses_env_token(monkeypatch) -> None:
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "test-token")
 
-    async def fake_run(self) -> None:
+    def fake_run(self) -> None:
         return None
 
-    with patch.object(CareerOpsTelegramBot, "run", fake_run):
+    with patch.object(CareerOpsTelegramBot, "run_sync", fake_run):
         # Should not raise
         run_bot(dry_run=True)

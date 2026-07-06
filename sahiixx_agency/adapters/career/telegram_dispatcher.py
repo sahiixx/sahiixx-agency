@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import os
 import re
 import subprocess
@@ -174,6 +173,53 @@ class CareerOpsTelegramBot:
 
         await application.run_polling()
 
+    def run_sync(self) -> None:
+        """Start polling synchronously (used by the CLI)."""
+        from telegram.ext import CommandHandler, MessageHandler, filters
+
+        application = self._build_app()
+        application.bot_data["dispatcher"] = self.dispatcher
+        application.bot_data["dry_run"] = self.dry_run
+
+        async def start(update: Any, _context: Any) -> None:
+            await update.effective_message.reply_text(
+                "Send me a job posting URL and I'll run Career-Ops on it.\n"
+                "Use /help for more info."
+            )
+
+        async def help_command(update: Any, _context: Any) -> None:
+            await update.effective_message.reply_text(
+                "Paste any job posting URL. The bot will dispatch it to Career-Ops\n"
+                "and return the evaluation summary."
+            )
+
+        async def handle_message(update: Any, context: Any) -> None:
+            text = update.effective_message.text or ""
+            url = CareerOpsDispatcher.extract_url(text)
+            if not url:
+                await update.effective_message.reply_text("I need a URL to a job posting.")
+                return
+
+            await update.effective_message.reply_text(f"Dispatching Career-Ops for {url}...")
+
+            if context.bot_data.get("dry_run"):
+                cmd = " ".join(_default_command_builder(url))
+                await update.effective_message.reply_text(f"[DRY RUN] Would run: {cmd}")
+                return
+
+            dispatcher: CareerOpsDispatcher = context.bot_data["dispatcher"]
+            result = dispatcher.dispatch(url)
+            await update.effective_message.reply_text(
+                CareerOpsDispatcher.format_reply(result),
+                parse_mode="HTML",
+            )
+
+        application.add_handler(CommandHandler("start", start))
+        application.add_handler(CommandHandler("help", help_command))
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+        application.run_polling()
+
 
 def run_bot(
     token: str | None = None,
@@ -186,4 +232,4 @@ def run_bot(
         raise RuntimeError("Telegram bot token is required (pass --token or set TELEGRAM_BOT_TOKEN)")
     dispatcher = CareerOpsDispatcher(use_claude=use_claude)
     bot = CareerOpsTelegramBot(token=token, dispatcher=dispatcher, dry_run=dry_run)
-    asyncio.run(bot.run())
+    bot.run_sync()

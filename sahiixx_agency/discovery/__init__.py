@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from .pipeline import DiscoveryPipeline, classify, deduplicate, score
 from .sources import (
     fetch_all_sources,
     fetch_github_trending,
@@ -11,6 +12,10 @@ from .sources import (
 )
 
 __all__ = [
+    "DiscoveryPipeline",
+    "classify",
+    "deduplicate",
+    "score",
     "fetch_all_sources",
     "fetch_github_trending",
     "fetch_github_velocity",

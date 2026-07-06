@@ -180,6 +180,7 @@ class DiscoveryResult(BaseModel):
     stars: int = 0
     language: str = "Unknown"
     source: str = "discovery"
+    category: RepoCategory = Field(default=RepoCategory.UNCATEGORIZED)
     risk_level: RiskLevel = RiskLevel.LOW
     entrypoint: list[str] | None = None
     created_at: datetime | None = None

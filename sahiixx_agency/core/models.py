@@ -17,6 +17,7 @@ class ModuleStatus(str, Enum):
     ACTIVE = "active"
     INACTIVE = "inactive"
     ERROR = "error"
+    EXPERIMENTAL = "experimental"
 
 
 class TaskStatus(str, Enum):

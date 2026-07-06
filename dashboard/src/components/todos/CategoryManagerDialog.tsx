@@ -7,7 +7,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from '@/components/ui/dialog'
 import type { Category } from '@/types/todo'
 
@@ -106,7 +105,7 @@ export function CategoryManagerDialog({
                   className={`h-8 w-8 rounded-full transition-all ${
                     color === c ? 'ring-2 ring-offset-2 ring-offset-background' : ''
                   }`}
-                  style={{ backgroundColor: c, ringColor: c }}
+                  style={{ backgroundColor: c, '--tw-ring-color': c } as React.CSSProperties}
                   onClick={() => setColor(c)}
                 />
               ))}

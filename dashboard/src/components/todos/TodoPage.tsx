@@ -55,11 +55,12 @@ export function TodoPage() {
   }
 
   const handleFormSubmit = (data: TodoFormData) => {
+    const normalized = { ...data, tags: data.tags || [] }
     if (editingTodo) {
-      updateTodo(editingTodo.id, data)
+      updateTodo(editingTodo.id, normalized)
       toast.success('Todo updated', { description: data.title })
     } else {
-      addTodo(data)
+      addTodo(normalized)
       toast.success('Todo created', { description: data.title })
     }
   }

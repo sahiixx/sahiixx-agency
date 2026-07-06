@@ -17,3 +17,5 @@ export interface Category {
 }
 
 export type FilterStatus = 'all' | 'active' | 'completed'
+
+export type { TodoFormData } from '@/lib/todo-schemas'

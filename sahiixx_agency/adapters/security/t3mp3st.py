@@ -57,11 +57,11 @@ class T3mp3stAdapter(BaseAdapter):
                     "error_code": "approval_not_configured",
                     "message": "Full arsenal requested but no approval token is configured in OPA.",
                 }
-            if not approval:
+            if not isinstance(approval, str):
                 return None, {
                     "status": "validation_error",
                     "error_code": "approval_required",
-                    "message": "Full arsenal requested but approval token is missing.",
+                    "message": "Full arsenal requested but approval token must be a string.",
                 }
             if not hmac.compare_digest(approval, self.approval_token):
                 return None, {

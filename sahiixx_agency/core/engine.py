@@ -161,12 +161,26 @@ class AgencyEngine:
                             "execution": run_result,
                         }
                     elif task.module_id.lower() == "html_anything":
-                        from sahiixx_agency.adapters.content.html_anything_adapter import HtmlAnythingAdapter
+                        from sahiixx_agency.adapters.design.html_anything_adapter import HtmlAnythingAdapter
 
                         html_adapter = HtmlAnythingAdapter(
                             clone_base_dir=os.path.join(self.config.data_dir, "repos"),
                         )
                         run_result = await html_adapter.run(mod, task.payload)
+                        task.result = {
+                            "module": mod.name,
+                            "category": mod.category.value,
+                            "url": mod.url,
+                            "capabilities": mod.capabilities,
+                            "execution": run_result,
+                        }
+                    elif task.module_id.lower() == "openmontage":
+                        from sahiixx_agency.adapters.video.open_montage_adapter import OpenMontageAdapter
+
+                        om_adapter = OpenMontageAdapter(
+                            clone_base_dir=os.path.join(self.config.data_dir, "repos"),
+                        )
+                        run_result = await om_adapter.run(mod, task.payload)
                         task.result = {
                             "module": mod.name,
                             "category": mod.category.value,

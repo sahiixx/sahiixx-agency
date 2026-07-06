@@ -86,9 +86,14 @@ class TaskRouter:
     def _resolve_ecosystem_target(self, target_key: str) -> RepoNode | None:
         """Resolve an ecosystem key to a RepoNode.
 
+        The returned node always uses ``target_key`` as its id so that downstream
+        branches in the engine (e.g. ``html_anything``) can match consistently,
+        even when the synced registry stored the module under a hyphenated repo
+        name like ``html-anything``.
+
         Lookup order:
-        1. config.ecosystem[target_key]["repo"] -> registry module by that repo name.
-        2. Direct registry lookup by target_key itself (matches when repo name == key).
+        1. config.ecosystem[target_key]["repo"] -> registry module by repo name.
+        2. Direct registry lookup by target_key itself.
         3. Stub RepoNode built from the ecosystem entry (pre-sync fallback).
         """
         eco = self.config.ecosystem.get(target_key)
@@ -98,17 +103,12 @@ class TaskRouter:
             if node is None:
                 node = self.registry.get(target_key)
             if node is not None:
-                # Merge ecosystem adapter_config into the synced node so
-                # agency.yaml settings (blocked_targets, allow_local, etc.)
-                # are applied to already-synced modules.
+                update: dict[str, Any] = {"id": target_key}
                 eco_adapter_config = eco.get("adapter_config")
                 if eco_adapter_config:
-                    merged = {**node.adapter_config, **eco_adapter_config}
-                    return node.model_copy(update={"adapter_config": merged})
-                return node
+                    update["adapter_config"] = {**node.adapter_config, **eco_adapter_config}
+                return node.model_copy(update=update)
             # Build a lightweight stub so routing metadata is available.
-            # Use the ecosystem key as the node id so downstream lookups
-            # (e.g. in AgencyEngine) match registry entries keyed by id.
             owner = eco.get("owner", "sahiixx")
             return RepoNode(
                 id=target_key,

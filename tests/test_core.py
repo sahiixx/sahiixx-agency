@@ -134,6 +134,29 @@ async def test_execute_module(engine):
     assert result["module"] == module.name
 
 
+@pytest.fixture
+def config(tmp_path):
+    return AgencyConfig(data_dir=str(tmp_path))
+
+
+@pytest.fixture
+def fake_registry():
+    class FakeRegistry:
+        def __init__(self) -> None:
+            self.modules: list[RepoNode] = []
+
+        def get(self, module_id: str) -> RepoNode | None:
+            return next((m for m in self.modules if m.id == module_id), None)
+
+        def set_status(self, module_id: str, status: Any) -> None:
+            pass
+
+        def stats(self) -> dict[str, Any]:
+            return {"total_modules": len(self.modules)}
+
+    return FakeRegistry()
+
+
 def test_get_task_unknown_id(engine):
     assert engine.get_task("task_does_not_exist") is None
 
@@ -500,4 +523,34 @@ async def test_router_resolves_letta_intent(router_with_five_new_modules):
 async def test_router_resolves_career_intent(router_with_five_new_modules):
     task = await router_with_five_new_modules.route("apply to jobs on linkedin")
     assert task.module_id == "career_ops"
+
+
+@pytest.mark.asyncio
+async def test_engine_uses_generic_adapter_for_unknown_module(config, fake_registry, monkeypatch):
+    from sahiixx_agency.adapters.generic_adapter import GenericAdapter
+
+    async def fake_generic_run(self, node: RepoNode, payload: dict[str, Any]) -> dict[str, Any]:
+        return {"status": "success", "module": node.name, "command": payload.get("command")}
+
+    monkeypatch.setattr(GenericAdapter, "run", fake_generic_run)
+
+    engine = AgencyEngine(config)
+    engine.registry = fake_registry
+    engine.router.registry = fake_registry
+    fake_registry.modules = [
+        RepoNode(
+            id="demo",
+            name="demo",
+            owner="test",
+            full_name="test/demo",
+            url="https://github.com/test/demo",
+            category=RepoCategory.UNCATEGORIZED,
+        ),
+    ]
+    await engine.start_worker()
+    task = await engine.dispatch("run the demo repo", {"command": "echo hello"})
+    await asyncio.sleep(0.2)
+    assert task.status == TaskStatus.COMPLETED
+    assert task.result["execution"]["status"] == "success"
+    await engine.stop_worker()
 

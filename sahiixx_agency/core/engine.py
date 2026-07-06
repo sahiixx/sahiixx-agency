@@ -160,7 +160,7 @@ class AgencyEngine:
                             "capabilities": mod.capabilities,
                             "execution": run_result,
                         }
-                    elif task.module_id.lower() == "html_anything":
+                    elif task.module_id.lower() in {"html-anything", "html_anything"}:
                         from sahiixx_agency.adapters.design.html_anything_adapter import HtmlAnythingAdapter
 
                         html_payload = dict(task.payload)
@@ -190,14 +190,15 @@ class AgencyEngine:
                             "capabilities": mod.capabilities,
                             "execution": run_result,
                         }
-                    else:
-                        # Generic clone-and-run path
-                        run_result = await self.runner.run(
-                            mod,
-                            command=task.payload.get("command", "run"),
-                            env=task.payload.get("env"),
-                            timeout=task.payload.get("timeout", 60),
+                    elif task.module_id:
+                        # Generic fallback: infer entrypoint and run
+                        from sahiixx_agency.adapters.generic_adapter import GenericAdapter
+
+                        generic_adapter = GenericAdapter(
+                            data_dir=self.config.data_dir,
+                            timeout=task.payload.get("timeout", 120),
                         )
+                        run_result = await generic_adapter.run(mod, task.payload)
                         task.result = {
                             "module": mod.name,
                             "category": mod.category.value,

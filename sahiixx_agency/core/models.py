@@ -140,6 +140,10 @@ class AgencyConfig(BaseModel):
     log_level: str = Field(default="INFO")
     default_llm: str | None = Field(default=None)
     llm_api_key: str | None = Field(default=None)
+    t3mp3st_approval_token: str | None = Field(
+        default=None,
+        description="Token required to authorize T3MP3ST full-arsenal mode.",
+    )
     # Config-driven routing rules loaded from agency.yaml
     routing_rules: list[RoutingRule] = Field(
         default_factory=list,

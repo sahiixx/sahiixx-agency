@@ -7,6 +7,11 @@ import pytest
 from sahiixx_agency.core.engine import AgencyEngine
 from sahiixx_agency.core.models import AgencyConfig, RepoCategory, RepoNode
 
+
+def test_agency_config_loads_t3mp3st_approval_token():
+    config = AgencyConfig(t3mp3st_approval_token="super-secret")
+    assert config.t3mp3st_approval_token == "super-secret"
+
 POLL_MAX_ATTEMPTS = 40
 POLL_INTERVAL = 0.25
 

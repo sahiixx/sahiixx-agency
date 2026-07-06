@@ -43,10 +43,12 @@ def _load_config() -> AgencyConfig:
 
         with open(config_path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
+        data.setdefault("t3mp3st_approval_token", os.environ.get("T3MP3ST_APPROVAL_TOKEN"))
         return AgencyConfig.model_validate(data)
     return AgencyConfig(
         github_token=os.environ.get("GITHUB_TOKEN"),
         github_username=os.environ.get("GITHUB_USER", "sahiixx"),
+        t3mp3st_approval_token=os.environ.get("T3MP3ST_APPROVAL_TOKEN"),
     )
 
 

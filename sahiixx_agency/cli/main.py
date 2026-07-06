@@ -287,6 +287,22 @@ def intel(
 
 
 @app.command()
+def telegram_career_bot(
+    token: str = typer.Option(None, "--token", "-t", help="Telegram bot token (or TELEGRAM_BOT_TOKEN env var)"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Print commands instead of running them"),
+    claude: bool = typer.Option(False, "--claude", help="Use Claude Code instead of the cops CLI"),
+) -> None:
+    """Start a Telegram bot that dispatches job URLs to Career-Ops."""
+    from sahiixx_agency.adapters.career import run_bot
+
+    try:
+        run_bot(token=token, dry_run=dry_run, use_claude=claude)
+    except RuntimeError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1) from e
+
+
+@app.command()
 def serve(
     host: str = typer.Option("0.0.0.0", "--host", "-h"),
     port: int = typer.Option(8080, "--port", "-p"),

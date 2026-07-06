@@ -163,10 +163,12 @@ class AgencyEngine:
                     elif task.module_id.lower() == "html_anything":
                         from sahiixx_agency.adapters.design.html_anything_adapter import HtmlAnythingAdapter
 
+                        html_payload = dict(task.payload)
+                        html_payload.setdefault("brief", task.intent)
                         html_adapter = HtmlAnythingAdapter(
                             clone_base_dir=os.path.join(self.config.data_dir, "repos"),
                         )
-                        run_result = await html_adapter.run(mod, task.payload)
+                        run_result = await html_adapter.run(mod, html_payload)
                         task.result = {
                             "module": mod.name,
                             "category": mod.category.value,

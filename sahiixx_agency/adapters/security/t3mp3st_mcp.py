@@ -93,6 +93,33 @@ class T3mp3stMcpAdapter(T3mp3stAdapter):
                 return name
         return names[0] if names else None
 
+    def _build_mcp_env(self, env: dict[str, str]) -> dict[str, str]:
+        """Build a sanitized environment for the T3MP3ST MCP subprocess.
+
+        The full OPA environment must not be exposed to the third-party Node
+        server, so we whitelist only the variables required for T3MP3ST to
+        receive its scoped configuration and for Node.js to launch.
+        """
+        run_env: dict[str, str] = {}
+
+        for key, value in env.items():
+            if key.startswith("T3MP3ST_"):
+                run_env[key] = value
+
+        if "PATH" in os.environ:
+            run_env["PATH"] = os.environ["PATH"]
+
+        for key, value in os.environ.items():
+            if key.startswith("NODE") or key.startswith("NPM"):
+                run_env[key] = value
+
+        if os.name == "nt":
+            for key in ("SYSTEMROOT", "WINDIR"):
+                if key in os.environ:
+                    run_env[key] = os.environ[key]
+
+        return run_env
+
     async def run(self, module: RepoNode, payload: dict[str, Any]) -> dict[str, Any]:
         blocked_networks = module.adapter_config.get("blocked_targets")
         env, error = self._validate_payload(
@@ -117,7 +144,7 @@ class T3mp3stMcpAdapter(T3mp3stAdapter):
         if server_cmd is None:
             return await self._fallback(module, payload, reason="mcp_server_not_found")
 
-        run_env = {**os.environ, **env}
+        run_env = self._build_mcp_env(env)
         params = StdioServerParameters(
             command=server_cmd[0],
             args=server_cmd[1:],

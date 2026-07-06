@@ -315,3 +315,42 @@ def test_resolve_ecosystem_target_propagates_owner_and_adapter_config(tmp_path):
     assert node.full_name == "elder-plinius/T3MP3ST"
     assert node.adapter_config == {"blocked_targets": ["10.0.0.0/8"]}
 
+
+def test_resolve_ecosystem_target_merges_adapter_config_into_synced_node(tmp_path):
+    config = AgencyConfig(
+        data_dir=str(tmp_path),
+        routing_rules=[{"pattern": "t3mp3st", "target": "t3mp3st"}],
+        ecosystem={
+            "t3mp3st": {
+                "repo": "T3MP3ST",
+                "owner": "elder-plinius",
+                "url": "https://github.com/elder-plinius/T3MP3ST",
+                "role": "red-team meta-harness",
+                "adapter_config": {
+                    "blocked_targets": ["10.0.0.0/8"],
+                    "allow_local": False,
+                },
+            },
+        },
+    )
+    registry = RepoRegistry(data_dir=str(tmp_path))
+    registry._modules["T3MP3ST"] = RepoNode(
+        id="t3mp3st",
+        name="T3MP3ST",
+        owner="elder-plinius",
+        full_name="elder-plinius/T3MP3ST",
+        url="https://github.com/elder-plinius/T3MP3ST",
+        category=RepoCategory.SECURITY,
+        adapter_config={"allow_local": True, "timeout": 30},
+    )
+    router = TaskRouter(registry, MessageBus(), config=config)
+    node = router._resolve_ecosystem_target("t3mp3st")
+    assert node is not None
+    assert node.adapter_config == {
+        "allow_local": False,
+        "timeout": 30,
+        "blocked_targets": ["10.0.0.0/8"],
+    }
+    # The original registry node should not be mutated.
+    assert registry._modules["T3MP3ST"].adapter_config == {"allow_local": True, "timeout": 30}
+

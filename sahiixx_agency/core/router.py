@@ -95,10 +95,16 @@ class TaskRouter:
         if eco:
             repo_name = eco.get("repo", target_key)
             node = self.registry.get(repo_name)
-            if node:
-                return node
-            node = self.registry.get(target_key)
-            if node:
+            if node is None:
+                node = self.registry.get(target_key)
+            if node is not None:
+                # Merge ecosystem adapter_config into the synced node so
+                # agency.yaml settings (blocked_targets, allow_local, etc.)
+                # are applied to already-synced modules.
+                eco_adapter_config = eco.get("adapter_config")
+                if eco_adapter_config:
+                    merged = {**node.adapter_config, **eco_adapter_config}
+                    return node.model_copy(update={"adapter_config": merged})
                 return node
             # Build a lightweight stub so routing metadata is available
             owner = eco.get("owner", "sahiixx")

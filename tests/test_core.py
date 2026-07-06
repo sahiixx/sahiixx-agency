@@ -17,6 +17,12 @@ def test_agency_config_loads_t3mp3st_approval_token():
     config = AgencyConfig(t3mp3st_approval_token="super-secret")
     assert config.t3mp3st_approval_token == "super-secret"
 
+
+def test_new_repo_categories_exist():
+    assert RepoCategory.CONTENT_MEDIA.value == "content_media"
+    assert RepoCategory.KNOWLEDGE.value == "knowledge"
+    assert RepoCategory.CAREER.value == "career"
+
 POLL_MAX_ATTEMPTS = 40
 POLL_INTERVAL = 0.25
 

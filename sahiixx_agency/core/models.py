@@ -41,6 +41,9 @@ class RepoCategory(str, Enum):
     COOKBOOK = "cookbook"
     OS_PLATFORM = "os_platform"
     INFRASTRUCTURE = "infrastructure"
+    CONTENT_MEDIA = "content_media"        # YouTube / media automation
+    KNOWLEDGE = "knowledge"                # Obsidian / second brain
+    CAREER = "career"                      # Job search / career agents
     FORK = "fork"
     UNCATEGORIZED = "uncategorized"
 

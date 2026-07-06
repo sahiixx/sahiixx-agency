@@ -201,6 +201,10 @@ class RepoRegistry:
         with open(self.registry_path, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2, default=str)
 
+    def save(self) -> None:
+        """Persist the current registry to disk."""
+        self._save()
+
     @property
     def modules(self) -> list[RepoNode]:
         return list(self._modules.values())

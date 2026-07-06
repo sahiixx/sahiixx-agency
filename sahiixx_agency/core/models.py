@@ -208,7 +208,7 @@ class DiscoveryResult(BaseModel):
     source: str = "discovery"
     category: RepoCategory = Field(default=RepoCategory.UNCATEGORIZED)
     risk_level: RiskLevel = RiskLevel.LOW
-    entrypoint: list[str] | None = None
+    entrypoint: list[list[str]] | list[str] | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
     discovered_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

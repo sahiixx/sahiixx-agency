@@ -30,27 +30,27 @@ def detect_project_type(repo_dir: str | Path) -> str:
     return "unknown"
 
 
-def _node_entrypoint(repo: Path) -> list[str] | None:
+def _node_entrypoint(repo: Path) -> list[list[str]] | None:
     package = _read_json(repo / "package.json")
     scripts = package.get("scripts", {})
     for script in ("dev", "start", "serve", "run"):
         if script in scripts:
-            return ["npm", "install", "&&", "npm", "run", script]
-    return ["npm", "install", "&&", "npm", "start"]
+            return [["npm", "install"], ["npm", "run", script]]
+    return [["npm", "install"], ["npm", "start"]]
 
 
-def _python_entrypoint(repo: Path) -> list[str] | None:
+def _python_entrypoint(repo: Path) -> list[list[str]] | list[str] | None:
     for script in ("main.py", "app.py", "run.py"):
         if (repo / script).exists():
-            install_cmd = (
-                ["pip", "install", "-e", "."]
+            install_cmd: list[list[str]] | list[str] = (
+                [["pip", "install", "-e", "."]]
                 if (repo / "pyproject.toml").exists()
-                else ["pip", "install", "-r", "requirements.txt"]
+                else [["pip", "install", "-r", "requirements.txt"]]
                 if (repo / "requirements.txt").exists()
                 else []
             )
             if install_cmd:
-                return install_cmd + ["&&", "python", script]
+                return [*install_cmd, ["python", script]]
             return ["python", script]
     return None
 
@@ -63,12 +63,15 @@ def _make_entrypoint(repo: Path) -> list[str] | None:
     return ["make"]
 
 
-def _docker_entrypoint(repo: Path) -> list[str] | None:
-    return ["docker", "build", "-t", repo.name, ".", "&&", "docker", "run", "--rm", repo.name]
+def _docker_entrypoint(repo: Path) -> list[list[str]] | None:
+    return [
+        ["docker", "build", "-t", repo.name, "."],
+        ["docker", "run", "--rm", repo.name],
+    ]
 
 
-def infer_entrypoint(repo_dir: str | Path) -> list[str] | None:
-    """Return the best-effort command to run a repo."""
+def infer_entrypoint(repo_dir: str | Path) -> list[list[str]] | list[str] | None:
+    """Return the best-effort command(s) to run a repo."""
     repo = Path(repo_dir)
     if not repo.is_dir():
         return None

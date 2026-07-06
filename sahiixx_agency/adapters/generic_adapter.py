@@ -39,7 +39,9 @@ class GenericAdapter:
                 return candidate
         return None
 
-    def _build_command(self, node: RepoNode, payload: dict[str, Any]) -> list[str] | None:
+    def _build_command(
+        self, node: RepoNode, payload: dict[str, Any]
+    ) -> list[list[str]] | list[str] | None:
         raw_command = payload.get("command")
         if isinstance(raw_command, str):
             return raw_command.split()
@@ -55,39 +57,65 @@ class GenericAdapter:
         if repo_dir is None:
             return self._simulate(node, payload, reason="repo not cloned")
 
-        command = self._build_command(node, payload)
-        if command is None:
+        commands = self._build_command(node, payload)
+        if commands is None:
             return self._simulate(node, payload, reason="no entrypoint inferred")
 
+        # Normalize to a list of command steps. A single command is wrapped so
+        # both `list[str]` (from payload) and `list[list[str]]` (from inferred
+        # entrypoints) can be executed uniformly.
+        command_steps: list[list[str]] = [commands] if commands and isinstance(commands[0], str) else commands  # type: ignore[assignment]
+
         run_env = {**os.environ, **(payload.get("env") or {})}
+        last_proc: subprocess.CompletedProcess[str] | None = None
+        joined_command = "; ".join(" ".join(step) for step in command_steps)
         try:
-            proc = await asyncio.to_thread(
-                subprocess.run,
-                command,
-                cwd=str(repo_dir),
-                capture_output=True,
-                text=True,
-                timeout=payload.get("timeout", self.timeout),
-                env=run_env,
-                check=False,
-            )
-            ok = proc.returncode == 0
-            if not ok and self.fallback_on_failure:
-                return self._simulate(node, payload, reason=f"exit code {proc.returncode}", stderr=proc.stderr[:500])
+            for step in command_steps:
+                proc = await asyncio.to_thread(
+                    subprocess.run,
+                    step,
+                    cwd=str(repo_dir),
+                    capture_output=True,
+                    text=True,
+                    timeout=payload.get("timeout", self.timeout),
+                    env=run_env,
+                    check=False,
+                )
+                last_proc = proc
+                if proc.returncode != 0:
+                    if self.fallback_on_failure:
+                        return self._simulate(
+                            node,
+                            payload,
+                            reason=f"exit code {proc.returncode} from step '{' '.join(step)}'",
+                            stderr=proc.stderr[:500],
+                        )
+                    return {
+                        "module": node.name,
+                        "status": "error",
+                        "command": joined_command,
+                        "failed_step": " ".join(step),
+                        "returncode": proc.returncode,
+                        "stdout": proc.stdout[:8000],
+                        "stderr": proc.stderr[:4000],
+                        "repo_dir": str(repo_dir),
+                    }
+
+            assert last_proc is not None
             return {
                 "module": node.name,
-                "status": "success" if ok else "error",
-                "command": " ".join(command),
-                "returncode": proc.returncode,
-                "stdout": proc.stdout[:8000],
-                "stderr": proc.stderr[:4000],
+                "status": "success",
+                "command": joined_command,
+                "returncode": last_proc.returncode,
+                "stdout": last_proc.stdout[:8000],
+                "stderr": last_proc.stderr[:4000],
                 "repo_dir": str(repo_dir),
             }
         except subprocess.TimeoutExpired:
             return self._simulate(node, payload, reason="timeout") if self.fallback_on_failure else {
                 "module": node.name,
                 "status": "timeout",
-                "command": " ".join(command),
+                "command": joined_command,
                 "error": f"Timeout after {self.timeout}s",
             }
         except Exception as exc:  # noqa: BLE001

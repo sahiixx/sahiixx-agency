@@ -226,31 +226,37 @@ async def run_intel(
 
 
 class DiscoveryRunRequest(BaseModel):
-    min_stars: int = 0
-    auto_clone: bool = False
+    min_stars: int | None = None
+    auto_clone: bool | None = None
 
 
 @app.post("/discovery/run")
 async def run_discovery(
     request: Annotated[DiscoveryRunRequest, Body(default_factory=DiscoveryRunRequest)],
+    engine: Annotated[AgencyEngine, Depends(get_engine)],
 ) -> dict[str, Any]:
     """Run the discovery pipeline and return newly discovered repos."""
     from sahiixx_agency.discovery.pipeline import DiscoveryPipeline
 
-    pipeline = DiscoveryPipeline(min_stars=request.min_stars, auto_clone=request.auto_clone)
+    discovery_config = engine.config.discovery
+    pipeline = DiscoveryPipeline(
+        data_dir=engine.config.data_dir,
+        min_stars=request.min_stars if request.min_stars is not None else discovery_config.min_stars,
+        auto_clone=request.auto_clone if request.auto_clone is not None else discovery_config.auto_clone,
+    )
     nodes = await pipeline.run()
     return {"discovered": len(nodes), "repos": [n.model_dump(mode="json") for n in nodes[:50]]}
 
 
 @app.get("/discovery/trending")
-async def list_trending() -> list[dict[str, Any]]:
+async def list_trending(engine: Annotated[AgencyEngine, Depends(get_engine)]) -> list[dict[str, Any]]:
     """Return the most recent daily snapshot of discovered repos."""
     from datetime import datetime, timezone
     from pathlib import Path
 
     from sahiixx_agency.core.models import DiscoveryResult
 
-    data_dir = Path("./data/discovery")
+    data_dir = Path(engine.config.data_dir) / "discovery"
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     path = data_dir / f"{today}.jsonl"
     if not path.exists():
@@ -265,11 +271,11 @@ async def list_trending() -> list[dict[str, Any]]:
 
 
 @app.get("/discovery/snapshots")
-async def list_snapshots() -> list[dict[str, Any]]:
+async def list_snapshots(engine: Annotated[AgencyEngine, Depends(get_engine)]) -> list[dict[str, Any]]:
     """List available discovery snapshot files."""
     from pathlib import Path
 
-    data_dir = Path("./data/discovery")
+    data_dir = Path(engine.config.data_dir) / "discovery"
     snapshots: list[dict[str, Any]] = []
     if data_dir.exists():
         for path in sorted(data_dir.glob("*.jsonl")):

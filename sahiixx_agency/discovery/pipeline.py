@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from sahiixx_agency.core.models import DiscoveryResult, RepoCategory, RepoNode, RiskLevel
+from sahiixx_agency.core.registry import RepoRegistry
 from sahiixx_agency.discovery.sources import fetch_all_sources
 
 CATEGORY_KEYWORDS: dict[RepoCategory, list[str]] = {
@@ -51,7 +52,13 @@ def classify(result: DiscoveryResult) -> DiscoveryResult:
             best_category = category
     risk = RISK_OVERRIDES.get(best_category, RiskLevel.LOW)
     if result.stars < 10 and result.source in ("hackernews", "reddit"):
-        risk = RiskLevel(risk.value) if risk != RiskLevel.LOW else RiskLevel.MEDIUM
+        escalation = {
+            RiskLevel.LOW: RiskLevel.MEDIUM,
+            RiskLevel.MEDIUM: RiskLevel.HIGH,
+            RiskLevel.HIGH: RiskLevel.CRITICAL,
+            RiskLevel.CRITICAL: RiskLevel.CRITICAL,
+        }
+        risk = escalation.get(risk, RiskLevel.MEDIUM)
     return result.model_copy(update={"category": best_category, "risk_level": risk})
 
 
@@ -98,7 +105,7 @@ class DiscoveryPipeline:
         self.discovery_dir.mkdir(parents=True, exist_ok=True)
 
     async def run(self) -> list[RepoNode]:
-        """Fetch, dedupe, filter, classify, and optionally clone trending repos."""
+        """Fetch, dedupe, filter, classify, optionally clone, and register trending repos."""
         raw = await fetch_all_sources()
         results = [DiscoveryResult.model_validate(r) for r in raw]
         results = deduplicate(results)
@@ -109,8 +116,17 @@ class DiscoveryPipeline:
         if self.auto_clone:
             for node in nodes[:20]:
                 await self._clone(node)
+        self._merge_into_registry(nodes)
         self._save_snapshot(results)
         return nodes
+
+    def _merge_into_registry(self, nodes: list[RepoNode]) -> None:
+        """Merge discovered nodes into the canonical registry, avoiding duplicates by id."""
+        registry = RepoRegistry(data_dir=str(self.data_dir))
+        for node in nodes:
+            if registry.get(node.id) is None:
+                registry._modules[node.id] = node
+        registry.save()
 
     async def _clone(self, node: RepoNode) -> Path | None:
         target = self.data_dir / "repos" / "trending" / node.owner / node.name

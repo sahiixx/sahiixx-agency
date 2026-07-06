@@ -97,6 +97,9 @@ class TaskRouter:
             node = self.registry.get(repo_name)
             if node:
                 return node
+            node = self.registry.get(target_key)
+            if node:
+                return node
             # Build a lightweight stub so routing metadata is available
             return RepoNode(
                 id=repo_name,

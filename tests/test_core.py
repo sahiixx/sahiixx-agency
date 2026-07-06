@@ -4,8 +4,11 @@ import asyncio
 
 import pytest
 
+from sahiixx_agency.core.bus import MessageBus
 from sahiixx_agency.core.engine import AgencyEngine
 from sahiixx_agency.core.models import AgencyConfig, RepoCategory, RepoNode
+from sahiixx_agency.core.registry import RepoRegistry
+from sahiixx_agency.core.router import TaskRouter
 
 
 def test_agency_config_loads_t3mp3st_approval_token():
@@ -140,3 +143,56 @@ async def test_list_tasks_returns_recent_tasks(engine):
         assert task2.id in ids
     finally:
         await engine.stop_worker()
+
+
+@pytest.fixture
+def router_with_new_modules(tmp_path):
+    config = AgencyConfig(
+        data_dir=str(tmp_path),
+        routing_rules=[
+            {"pattern": "t3mp3st|red.team|offensive|0-day|zero.day|exploit|pentest|recon|security", "target": "t3mp3st"},
+            {"pattern": "resume|candidate|hire|hiring|evaluate.profile|screen|recruit", "target": "hiring_agent"},
+        ],
+        ecosystem={
+            "t3mp3st": {
+                "repo": "T3MP3ST",
+                "owner": "elder-plinius",
+                "url": "https://github.com/elder-plinius/T3MP3ST",
+                "role": "red-team meta-harness",
+            },
+            "hiring_agent": {
+                "repo": "hiring-agent",
+                "owner": "interviewstreet",
+                "url": "https://github.com/interviewstreet/hiring-agent",
+                "role": "AI hiring agent",
+            },
+        },
+    )
+    registry = RepoRegistry(data_dir=str(tmp_path))
+    registry._modules["t3mp3st"] = RepoNode(
+        id="t3mp3st",
+        name="T3MP3ST",
+        full_name="elder-plinius/T3MP3ST",
+        url="https://github.com/elder-plinius/T3MP3ST",
+        category=RepoCategory.SECURITY,
+    )
+    registry._modules["hiring_agent"] = RepoNode(
+        id="hiring_agent",
+        name="hiring-agent",
+        full_name="interviewstreet/hiring-agent",
+        url="https://github.com/interviewstreet/hiring-agent",
+        category=RepoCategory.UNCATEGORIZED,
+    )
+    return TaskRouter(registry, MessageBus(), config=config)
+
+
+@pytest.mark.asyncio
+async def test_router_resolves_red_team_intent_to_t3mp3st(router_with_new_modules):
+    task = await router_with_new_modules.route("run a pentest recon against example.com")
+    assert task.module_id == "t3mp3st"
+
+
+@pytest.mark.asyncio
+async def test_router_resolves_hiring_intent_to_hiring_agent(router_with_new_modules):
+    task = await router_with_new_modules.route("evaluate this candidate's resume")
+    assert task.module_id == "hiring_agent"

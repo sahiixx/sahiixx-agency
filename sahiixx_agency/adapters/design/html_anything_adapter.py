@@ -103,15 +103,21 @@ class HtmlAnythingAdapter:
         (project_dir / "brief.txt").write_text(brief, encoding="utf-8")
         (project_dir / "surface.txt").write_text(surface, encoding="utf-8")
 
-    def _build_command(self, project_dir: Path, surface: str) -> list[str]:
-        """Build command to start the HTML-Anything dev server.
+    def _find_pnpm(self) -> list[str]:
+        """Return the command list to invoke pnpm."""
+        import shutil
 
-        If pnpm is available and the Next.js app is installed, launch the dev
-        server. Otherwise return a simple scaffold command.
-        """
+        pnpm = shutil.which("pnpm")
+        if pnpm:
+            return [pnpm]
+        # Fallback: use npx to run the locally-resolvable pnpm
+        return ["npx", "pnpm"]
+
+    def _build_command(self, project_dir: Path, surface: str) -> list[str]:
+        """Build command to start the HTML-Anything dev server."""
         next_dir = self.repo_dir / "next"
         if (self.repo_dir / "pnpm-lock.yaml").exists() and next_dir.exists():
-            return ["pnpm", "-F", "@html-anything/next", "dev"]
+            return [*self._find_pnpm(), "-F", "@html-anything/next", "dev"]
         return [
             "python",
             "-c",

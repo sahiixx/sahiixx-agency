@@ -11,6 +11,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 
 from sahiixx_agency.core.engine import AgencyEngine
 from sahiixx_agency.core.models import AgencyConfig, RepoCategory
@@ -123,6 +124,11 @@ async def sync_registry(
 # ---------- Tasks ----------
 
 
+class DispatchRequest(BaseModel):
+    intent: str
+    payload: dict[str, Any] = Field(default_factory=dict)
+
+
 @app.post("/tasks")
 async def create_task(
     intent: str,
@@ -130,6 +136,16 @@ async def create_task(
     payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     task = await engine.dispatch(intent, payload)
+    return task.model_dump(mode="json")
+
+
+@app.post("/dispatch")
+async def dispatch_json(
+    request: DispatchRequest,
+    engine: Annotated[AgencyEngine, Depends(get_engine)],
+) -> dict[str, Any]:
+    """Dispatch a task with a JSON body containing intent and payload."""
+    task = await engine.dispatch(request.intent, request.payload)
     return task.model_dump(mode="json")
 
 

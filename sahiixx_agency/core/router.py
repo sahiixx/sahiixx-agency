@@ -106,10 +106,12 @@ class TaskRouter:
                     merged = {**node.adapter_config, **eco_adapter_config}
                     return node.model_copy(update={"adapter_config": merged})
                 return node
-            # Build a lightweight stub so routing metadata is available
+            # Build a lightweight stub so routing metadata is available.
+            # Use the ecosystem key as the node id so downstream lookups
+            # (e.g. in AgencyEngine) match registry entries keyed by id.
             owner = eco.get("owner", "sahiixx")
             return RepoNode(
-                id=repo_name,
+                id=target_key,
                 name=repo_name,
                 owner=owner,
                 full_name=f"{owner}/{repo_name}",

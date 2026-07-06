@@ -85,6 +85,27 @@ class AgencyEngine:
         await self._task_queue.put(task)
         return task
 
+    def _resolve_module(self, module_id: str) -> RepoNode | None:
+        """Resolve a module by id, falling back to ecosystem config stubs."""
+        mod = self.registry.get(module_id)
+        if mod is not None:
+            return mod
+
+        eco = self.config.ecosystem.get(module_id)
+        if eco:
+            repo_name = eco.get("repo", module_id)
+            owner = eco.get("owner", self.config.github_username or "sahiixx")
+            return RepoNode(
+                id=module_id,
+                name=repo_name,
+                owner=owner,
+                full_name=f"{owner}/{repo_name}",
+                url=eco.get("url", f"https://github.com/{owner}/{repo_name}"),
+                description=eco.get("role"),
+                adapter_config=eco.get("adapter_config", {}),
+            )
+        return None
+
     async def _execute_task(self, task: AgencyTask) -> None:
         """Execute a task by cloning and running the target module."""
         task.status = TaskStatus.RUNNING
@@ -93,7 +114,7 @@ class AgencyEngine:
 
         try:
             if task.module_id:
-                mod = self.registry.get(task.module_id)
+                mod = self._resolve_module(task.module_id)
                 if mod:
                     if task.module_id.lower() == "t3mp3st":
                         # Use the safety-hardened T3MP3ST MCP adapter
@@ -132,6 +153,20 @@ class AgencyEngine:
                             clone_base_dir=os.path.join(self.config.data_dir, "repos"),
                         )
                         run_result = await hiring_adapter.run(mod, task.payload)
+                        task.result = {
+                            "module": mod.name,
+                            "category": mod.category.value,
+                            "url": mod.url,
+                            "capabilities": mod.capabilities,
+                            "execution": run_result,
+                        }
+                    elif task.module_id.lower() == "html_anything":
+                        from sahiixx_agency.adapters.content.html_anything_adapter import HtmlAnythingAdapter
+
+                        html_adapter = HtmlAnythingAdapter(
+                            clone_base_dir=os.path.join(self.config.data_dir, "repos"),
+                        )
+                        run_result = await html_adapter.run(mod, task.payload)
                         task.result = {
                             "module": mod.name,
                             "category": mod.category.value,

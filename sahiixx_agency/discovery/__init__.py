@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from .entrypoint import detect_project_type, infer_entrypoint
 from .pipeline import DiscoveryPipeline, classify, deduplicate, score
 from .sources import (
     fetch_all_sources,
@@ -12,6 +13,8 @@ from .sources import (
 )
 
 __all__ = [
+    "detect_project_type",
+    "infer_entrypoint",
     "DiscoveryPipeline",
     "classify",
     "deduplicate",

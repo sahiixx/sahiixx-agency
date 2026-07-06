@@ -101,12 +101,15 @@ class TaskRouter:
             if node:
                 return node
             # Build a lightweight stub so routing metadata is available
+            owner = eco.get("owner", "sahiixx")
             return RepoNode(
                 id=repo_name,
                 name=repo_name,
-                full_name=f"sahiixx/{repo_name}",
-                url=eco.get("url", f"https://github.com/sahiixx/{repo_name}"),
+                owner=owner,
+                full_name=f"{owner}/{repo_name}",
+                url=eco.get("url", f"https://github.com/{owner}/{repo_name}"),
                 description=eco.get("role"),
+                adapter_config=eco.get("adapter_config", {}),
             )
         # Direct registry lookup as final fallback
         return self.registry.get(target_key)

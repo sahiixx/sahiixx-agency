@@ -95,20 +95,34 @@ class AgencyEngine:
             if task.module_id:
                 mod = self.registry.get(task.module_id)
                 if mod:
-                    # Actually clone and run the module
-                    run_result = await self.runner.run(
-                        mod,
-                        command=task.payload.get("command", "run"),
-                        env=task.payload.get("env"),
-                        timeout=task.payload.get("timeout", 60),
-                    )
-                    task.result = {
-                        "module": mod.name,
-                        "category": mod.category.value,
-                        "url": mod.url,
-                        "capabilities": mod.capabilities,
-                        "execution": run_result,
-                    }
+                    if task.module_id == "t3mp3st":
+                        # Use the safety-hardened T3MP3ST MCP adapter
+                        from sahiixx_agency.adapters.security.t3mp3st_mcp import T3mp3stMcpAdapter
+
+                        adapter = T3mp3stMcpAdapter(
+                            clone_base_dir=os.path.join(self.config.data_dir, "repos"),
+                            approval_token=self.config.t3mp3st_approval_token,
+                        )
+                        run_result = await adapter.run(mod, task.payload)
+                        task.result = {
+                            "module": mod.name,
+                            "execution": run_result,
+                        }
+                    else:
+                        # Generic clone-and-run path
+                        run_result = await self.runner.run(
+                            mod,
+                            command=task.payload.get("command", "run"),
+                            env=task.payload.get("env"),
+                            timeout=task.payload.get("timeout", 60),
+                        )
+                        task.result = {
+                            "module": mod.name,
+                            "category": mod.category.value,
+                            "url": mod.url,
+                            "capabilities": mod.capabilities,
+                            "execution": run_result,
+                        }
                     self.registry.set_status(mod.id, ModuleStatus.ACTIVE)
                 else:
                     task.result = {"note": "Module not found in registry."}

@@ -1,12 +1,14 @@
 """Tests for the One Person Agency core."""
 
 import asyncio
+from typing import Any
 
 import pytest
 
+from sahiixx_agency.adapters.security.t3mp3st_mcp import T3mp3stMcpAdapter
 from sahiixx_agency.core.bus import MessageBus
 from sahiixx_agency.core.engine import AgencyEngine
-from sahiixx_agency.core.models import AgencyConfig, RepoCategory, RepoNode
+from sahiixx_agency.core.models import AgencyConfig, AgencyTask, RepoCategory, RepoNode, TaskStatus
 from sahiixx_agency.core.registry import RepoRegistry
 from sahiixx_agency.core.router import TaskRouter
 
@@ -196,3 +198,70 @@ async def test_router_resolves_red_team_intent_to_t3mp3st(router_with_new_module
 async def test_router_resolves_hiring_intent_to_hiring_agent(router_with_new_modules):
     task = await router_with_new_modules.route("evaluate this candidate's resume")
     assert task.module_id == "hiring_agent"
+
+
+@pytest.mark.asyncio
+async def test_execute_task_uses_t3mp3st_adapter(tmp_path, monkeypatch):
+    config = AgencyConfig(
+        data_dir=str(tmp_path),
+        t3mp3st_approval_token="super-secret",
+    )
+    engine = AgencyEngine(config)
+
+    module = RepoNode(
+        id="t3mp3st",
+        name="T3MP3ST",
+        owner="elder-plinius",
+        full_name="elder-plinius/T3MP3ST",
+        url="https://github.com/elder-plinius/T3MP3ST",
+        category=RepoCategory.SECURITY,
+    )
+    engine.registry._modules["t3mp3st"] = module
+
+    adapter_calls: list[tuple[str, dict[str, Any]]] = []
+
+    async def fake_adapter_run(self, mod, payload):
+        adapter_calls.append((mod.id, payload))
+        return {"status": "success", "source": "adapter"}
+
+    monkeypatch.setattr(T3mp3stMcpAdapter, "run", fake_adapter_run)
+
+    task = AgencyTask(
+        id="task_test_t3mp3st",
+        intent="run t3mp3st against example.com",
+        module_id="t3mp3st",
+        payload={"target": "example.com"},
+    )
+    engine._tasks[task.id] = task
+    await engine._execute_task(task)
+
+    assert len(adapter_calls) == 1
+    assert adapter_calls[0][0] == "t3mp3st"
+    assert task.status == TaskStatus.COMPLETED
+    assert task.result == {
+        "module": "T3MP3ST",
+        "execution": {"status": "success", "source": "adapter"},
+    }
+
+
+def test_resolve_ecosystem_target_propagates_owner_and_adapter_config(tmp_path):
+    config = AgencyConfig(
+        data_dir=str(tmp_path),
+        routing_rules=[{"pattern": "t3mp3st", "target": "t3mp3st"}],
+        ecosystem={
+            "t3mp3st": {
+                "repo": "T3MP3ST",
+                "owner": "elder-plinius",
+                "url": "https://github.com/elder-plinius/T3MP3ST",
+                "role": "red-team meta-harness",
+                "adapter_config": {"blocked_targets": ["10.0.0.0/8"]},
+            },
+        },
+    )
+    router = TaskRouter(RepoRegistry(data_dir=str(tmp_path)), MessageBus(), config=config)
+    node = router._resolve_ecosystem_target("t3mp3st")
+    assert node is not None
+    assert node.owner == "elder-plinius"
+    assert node.full_name == "elder-plinius/T3MP3ST"
+    assert node.adapter_config == {"blocked_targets": ["10.0.0.0/8"]}
+

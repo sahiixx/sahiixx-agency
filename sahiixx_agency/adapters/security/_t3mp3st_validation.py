@@ -11,7 +11,9 @@ _DEFAULT_BLOCKED_NETWORKS = [
     "10.0.0.0/8",
     "172.16.0.0/12",
     "192.168.0.0/16",
+    "127.0.0.0/8",
     "fc00::/7",
+    "::1/128",
 ]
 
 # Valid DNS hostname label per RFC 1123.

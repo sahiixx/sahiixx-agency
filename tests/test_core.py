@@ -240,6 +240,56 @@ async def test_execute_task_uses_t3mp3st_adapter(tmp_path, monkeypatch):
     assert task.status == TaskStatus.COMPLETED
     assert task.result == {
         "module": "T3MP3ST",
+        "category": "security",
+        "url": "https://github.com/elder-plinius/T3MP3ST",
+        "capabilities": [],
+        "execution": {"status": "success", "source": "adapter"},
+    }
+
+
+@pytest.mark.asyncio
+async def test_execute_task_uses_t3mp3st_adapter_with_uppercase_module_id(tmp_path, monkeypatch):
+    config = AgencyConfig(
+        data_dir=str(tmp_path),
+        t3mp3st_approval_token="super-secret",
+    )
+    engine = AgencyEngine(config)
+
+    module = RepoNode(
+        id="T3MP3ST",
+        name="T3MP3ST",
+        owner="elder-plinius",
+        full_name="elder-plinius/T3MP3ST",
+        url="https://github.com/elder-plinius/T3MP3ST",
+        category=RepoCategory.SECURITY,
+    )
+    engine.registry._modules["T3MP3ST"] = module
+
+    adapter_calls: list[tuple[str, dict[str, Any]]] = []
+
+    async def fake_adapter_run(self, mod, payload):
+        adapter_calls.append((mod.id, payload))
+        return {"status": "success", "source": "adapter"}
+
+    monkeypatch.setattr(T3mp3stMcpAdapter, "run", fake_adapter_run)
+
+    task = AgencyTask(
+        id="task_test_T3MP3ST",
+        intent="run T3MP3ST against example.com",
+        module_id="T3MP3ST",
+        payload={"target": "example.com"},
+    )
+    engine._tasks[task.id] = task
+    await engine._execute_task(task)
+
+    assert len(adapter_calls) == 1
+    assert adapter_calls[0][0] == "T3MP3ST"
+    assert task.status == TaskStatus.COMPLETED
+    assert task.result == {
+        "module": "T3MP3ST",
+        "category": "security",
+        "url": "https://github.com/elder-plinius/T3MP3ST",
+        "capabilities": [],
         "execution": {"status": "success", "source": "adapter"},
     }
 

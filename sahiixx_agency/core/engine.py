@@ -95,7 +95,7 @@ class AgencyEngine:
             if task.module_id:
                 mod = self.registry.get(task.module_id)
                 if mod:
-                    if task.module_id == "t3mp3st":
+                    if task.module_id.lower() == "t3mp3st":
                         # Use the safety-hardened T3MP3ST MCP adapter
                         from sahiixx_agency.adapters.security.t3mp3st_mcp import T3mp3stMcpAdapter
 
@@ -106,6 +106,9 @@ class AgencyEngine:
                         run_result = await adapter.run(mod, task.payload)
                         task.result = {
                             "module": mod.name,
+                            "category": mod.category.value,
+                            "url": mod.url,
+                            "capabilities": mod.capabilities,
                             "execution": run_result,
                         }
                     else:

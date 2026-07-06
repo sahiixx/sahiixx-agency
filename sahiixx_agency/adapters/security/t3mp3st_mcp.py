@@ -95,7 +95,11 @@ class T3mp3stMcpAdapter(T3mp3stAdapter):
 
     async def run(self, module: RepoNode, payload: dict[str, Any]) -> dict[str, Any]:
         blocked_networks = module.adapter_config.get("blocked_targets")
-        env, error = self._validate_payload(payload, blocked_networks=blocked_networks)
+        env, error = self._validate_payload(
+            payload,
+            blocked_networks=blocked_networks,
+            allow_local=module.adapter_config.get("allow_local"),
+        )
         if error:
             return error
 
@@ -137,12 +141,15 @@ class T3mp3stMcpAdapter(T3mp3stAdapter):
                     arguments={
                         "target": payload["target"],
                         "mode": payload.get("mode", "lite"),
+                        "approval": payload.get("approval"),
                     },
                 )
                 return {
                     "status": "success",
                     "source": "mcp",
                     "tool": tool_name,
+                    "t3mp3st_mode": payload.get("mode", "lite"),
+                    "t3mp3st_target": payload["target"],
                     "result": result.model_dump() if hasattr(result, "model_dump") else dict(result),
                 }
         except Exception as exc:

@@ -26,6 +26,7 @@ class T3mp3stAdapter(BaseAdapter):
         payload: dict[str, Any],
         *,
         blocked_networks: list[str] | None = None,
+        allow_local: bool | None = None,
     ) -> tuple[dict[str, str] | None, dict[str, Any] | None]:
         """Validate payload and build the safety environment dict.
 
@@ -34,7 +35,13 @@ class T3mp3stAdapter(BaseAdapter):
         target = payload.get("target")
         mode = payload.get("mode", "lite")
         approval = payload.get("approval")
-        allow_local = payload.get("allow_local", False)
+        payload_allow_local = payload.get("allow_local")
+        if payload_allow_local is not None:
+            allow_local = bool(payload_allow_local)
+        elif allow_local is None:
+            allow_local = False
+        else:
+            allow_local = bool(allow_local)
 
         if not isinstance(target, str) or not target.strip():
             return None, {
@@ -89,7 +96,11 @@ class T3mp3stAdapter(BaseAdapter):
 
     async def run(self, module: RepoNode, payload: dict[str, Any]) -> dict[str, Any]:
         blocked_networks = module.adapter_config.get("blocked_targets")
-        env, error = self._validate_payload(payload, blocked_networks=blocked_networks)
+        env, error = self._validate_payload(
+            payload,
+            blocked_networks=blocked_networks,
+            allow_local=module.adapter_config.get("allow_local"),
+        )
         if error:
             return error
 

@@ -119,6 +119,40 @@ ecosystem:
     protocol: http
     tags: [cloudflare, workers, openclaw]
 
+  # ── Security Adapters ──
+  t3mp3st:
+    repo: T3MP3ST
+    owner: elder-plinius
+    url: https://github.com/elder-plinius/T3MP3ST
+    role: "Autonomous red-team meta-harness — recon → exploit → report"
+    bus_channel: "security.*"
+    protocol: mcp+subprocess
+    priority: 2
+    tags: [security, redteam, pentest, mcp, t3mp3st]
+    adapter_config:
+      default_mode: lite
+      blocked_targets:
+        - localhost
+        - 127.0.0.1
+        - ::1
+        - 0.0.0.0
+        - 10.0.0.0/8
+        - 172.16.0.0/12
+        - 192.168.0.0/16
+        - fc00::/7
+      allow_local: false
+
+  # ── HR / Hiring Agents ──
+  hiring_agent:
+    repo: hiring-agent
+    owner: interviewstreet
+    url: https://github.com/interviewstreet/hiring-agent
+    role: "AI hiring agent — resume + GitHub profile evaluation and scoring"
+    bus_channel: "hr.*"
+    protocol: python-lib
+    priority: 2
+    tags: [hiring, hr, resume, evaluation, hackerrank]
+
 # ─── Routing Rules ─────────────────────────────────────────────
 routing_rules:
   - pattern: "voice|speak|listen|call"
@@ -137,4 +171,8 @@ routing_rules:
     target: saas
   - pattern: "agi|coordinate|plan|reason"
     target: agi
+  - pattern: "t3mp3st|red.team|offensive|0-day|zero.day|exploit|pentest|recon|security"
+    target: t3mp3st
+  - pattern: "resume|candidate|hire|hiring|evaluate.profile|screen|recruit"
+    target: hiring_agent
 

@@ -14,6 +14,39 @@ from .models import ModuleStatus, RepoCategory, RepoNode
 # Keywords → category mapping
 CATEGORY_RULES: list[tuple[RepoCategory, list[str]]] = [
     (
+        RepoCategory.CONTENT_MEDIA,
+        [
+            "youtube",
+            "video",
+            "content",
+            "media",
+            "channel",
+        ],
+    ),
+    (
+        RepoCategory.KNOWLEDGE,
+        [
+            "obsidian",
+            "vault",
+            "wiki",
+            "second brain",
+            "knowledge",
+            "notes",
+        ],
+    ),
+    (
+        RepoCategory.CAREER,
+        [
+            "career",
+            "job",
+            "resume",
+            "cv",
+            "hiring",
+            "linkedin",
+            "apply",
+        ],
+    ),
+    (
         RepoCategory.AGENT_FRAMEWORK,
         [
             "agent",
@@ -31,6 +64,12 @@ CATEGORY_RULES: list[tuple[RepoCategory, list[str]]] = [
             "bot",
             "multi-agent",
             "orchestrat",
+            "relaymux",
+            "letta",
+            "stateful",
+            "memory",
+            "remote",
+            "tmux",
         ],
     ),
     (

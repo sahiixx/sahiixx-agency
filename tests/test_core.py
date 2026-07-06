@@ -9,7 +9,7 @@ from sahiixx_agency.adapters.security.t3mp3st_mcp import T3mp3stMcpAdapter
 from sahiixx_agency.core.bus import MessageBus
 from sahiixx_agency.core.engine import AgencyEngine
 from sahiixx_agency.core.models import AgencyConfig, AgencyTask, RepoCategory, RepoNode, TaskStatus
-from sahiixx_agency.core.registry import RepoRegistry
+from sahiixx_agency.core.registry import RepoRegistry, _classify_repo
 from sahiixx_agency.core.router import TaskRouter
 
 
@@ -359,4 +359,47 @@ def test_resolve_ecosystem_target_merges_adapter_config_into_synced_node(tmp_pat
     }
     # The original registry node should not be mutated.
     assert registry._modules["T3MP3ST"].adapter_config == {"allow_local": True, "timeout": 30}
+
+
+def test_classify_repo_content_media():
+    category = _classify_repo(
+        "youtube-automation-agent",
+        "Automated YouTube channel management",
+        ["youtube", "content"],
+    )
+    assert category == RepoCategory.CONTENT_MEDIA
+
+
+def test_classify_repo_knowledge():
+    category = _classify_repo(
+        "claude-obsidian",
+        "Obsidian vault second brain",
+        ["obsidian", "knowledge"],
+    )
+    assert category == RepoCategory.KNOWLEDGE
+
+
+def test_classify_repo_career():
+    category = _classify_repo(
+        "career-ops",
+        "AI-powered job search system",
+        ["career", "resume"],
+    )
+    assert category == RepoCategory.CAREER
+
+
+def test_classify_repo_agent_framework_relaymux_letta():
+    category = _classify_repo(
+        "relaymux",
+        "Telegram remote control for tmux coding agents",
+        ["agent", "telegram", "tmux"],
+    )
+    assert category == RepoCategory.AGENT_FRAMEWORK
+
+    category = _classify_repo(
+        "letta-code",
+        "Stateful agents with persistent memory",
+        ["letta", "memory", "stateful"],
+    )
+    assert category == RepoCategory.AGENT_FRAMEWORK
 

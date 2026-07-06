@@ -48,8 +48,8 @@ async def test_mcp_adapter_falls_back_when_server_unavailable(
 
 
 @pytest.mark.asyncio
-async def test_mcp_adapter_reuses_validation_before_fallback(t3mp3st_module):
-    adapter = T3mp3stMcpAdapter()
+async def test_mcp_adapter_reuses_validation_before_fallback(t3mp3st_module, tmp_path):
+    adapter = T3mp3stMcpAdapter(clone_base_dir=str(tmp_path))
     result = await adapter.run(t3mp3st_module, {"target": "localhost"})
     assert result["status"] == "validation_error"
     assert result["error_code"] == "blocked_target"

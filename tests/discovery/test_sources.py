@@ -40,7 +40,7 @@ async def test_fetch_github_velocity_parses_search_results(monkeypatch):
             return False
 
     monkeypatch.setattr("sahiixx_agency.discovery.sources.httpx.AsyncClient", lambda **kwargs: FakeClient())
-    results = await fetch_github_velocity()
+    results = await fetch_github_velocity(languages=["python"])
     assert len(results) == 1
     assert results[0]["full_name"] == "nexu-io/html-anything"
     assert results[0]["stars"] == 1200

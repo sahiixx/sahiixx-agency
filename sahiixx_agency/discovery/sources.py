@@ -9,7 +9,7 @@ from typing import Any
 import httpx
 
 _GITHUB_API = "https://api.github.com"
-_HN_API = "http://hn.algolia.com/api/v1"
+_HN_API = "https://hn.algolia.com/api/v1"
 
 
 def _headers() -> dict[str, str]:
@@ -18,13 +18,6 @@ def _headers() -> dict[str, str]:
     if token:
         headers["Authorization"] = f"Bearer {token}"
     return headers
-
-
-def _repo_url_to_full_name(url: str) -> str | None:
-    match = re.search(r"github\.com/([^/]+/[^/]+)", url)
-    if match:
-        return match.group(1).rstrip("/")
-    return None
 
 
 def _item_to_result(item: dict[str, Any], source: str) -> dict[str, Any]:
@@ -45,9 +38,9 @@ async def fetch_github_trending(language: str | None = None) -> list[dict[str, A
     q = "created:>7d stars:>50 sort:stars"
     if language:
         q += f" language:{language}"
-    url = f"{_GITHUB_API}/search/repositories?q={q}&per_page=20"
+    url = f"{_GITHUB_API}/search/repositories"
     async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.get(url, headers=_headers())
+        resp = await client.get(url, headers=_headers(), params={"q": q, "per_page": 20})
     if resp.status_code != 200:
         return []
     return [_item_to_result(item, "github_trending") for item in resp.json().get("items", [])]
@@ -58,13 +51,13 @@ async def fetch_github_velocity(
     min_stars: int = 50,
 ) -> list[dict[str, Any]]:
     """Fetch recently starred repos."""
-    languages = languages or ["python"]
+    languages = languages or ["python", "typescript", "javascript", "go", "rust"]
     results: list[dict[str, Any]] = []
     async with httpx.AsyncClient(timeout=30) as client:
         for language in languages:
             q = f"created:>7d stars:>{min_stars} language:{language} sort:stars"
-            url = f"{_GITHUB_API}/search/repositories?q={q}&per_page=10"
-            resp = await client.get(url, headers=_headers())
+            url = f"{_GITHUB_API}/search/repositories"
+            resp = await client.get(url, headers=_headers(), params={"q": q, "per_page": 10})
             if resp.status_code == 200:
                 results.extend(_item_to_result(item, "github_velocity") for item in resp.json().get("items", []))
     return results
@@ -74,7 +67,7 @@ async def fetch_hackernews_repos() -> list[dict[str, Any]]:
     """Fetch Show HN stories and extract GitHub URLs."""
     url = f"{_HN_API}/search?tags=show_hn&hitsPerPage=30"
     async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.get(url)
+        resp = await client.get(url, headers={"User-Agent": "sahiixx-agency-discovery"})
     if resp.status_code != 200:
         return []
     results = []
@@ -130,13 +123,10 @@ async def fetch_reddit_repos(subreddits: list[str] | None = None) -> list[dict[s
     return results
 
 
-async def fetch_all_sources(
-    languages: list[str] | None = None,
-    subreddits: list[str] | None = None,
-) -> list[dict[str, Any]]:
+async def fetch_all_sources() -> list[dict[str, Any]]:
     """Fetch repos from all configured discovery sources."""
     github_trending = await fetch_github_trending()
-    github_velocity = await fetch_github_velocity(languages=languages)
+    github_velocity = await fetch_github_velocity()
     hackernews = await fetch_hackernews_repos()
-    reddit = await fetch_reddit_repos(subreddits=subreddits)
+    reddit = await fetch_reddit_repos()
     return github_trending + github_velocity + hackernews + reddit

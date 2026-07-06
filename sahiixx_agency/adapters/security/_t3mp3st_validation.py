@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ipaddress
+import re
 from urllib.parse import urlparse
 
 _BLOCKED_HOSTS = {"localhost", "127.0.0.1", "::1", "0.0.0.0"}
@@ -13,6 +14,12 @@ _DEFAULT_BLOCKED_NETWORKS = [
     "fc00::/7",
 ]
 
+# Valid DNS hostname label per RFC 1123.
+_HOSTNAME_REGEX = re.compile(
+    r"^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)*"
+    r"[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$"
+)
+
 
 def _host_from_target(target: str) -> str:
     """Extract a hostname from a target that may be a URL, IP, or plain host."""
@@ -22,6 +29,19 @@ def _host_from_target(target: str) -> str:
     parsed = urlparse(stripped)
     host = parsed.hostname or stripped.lstrip("/")
     return host.lower()
+
+
+def _is_valid_host(host: str) -> bool:
+    """Return True if ``host`` is a syntactically valid hostname or IP address."""
+    try:
+        ipaddress.ip_address(host)
+        return True
+    except ValueError:
+        pass
+    # Hostnames must be <= 253 chars and match the label pattern.
+    if len(host) > 253:
+        return False
+    return bool(_HOSTNAME_REGEX.match(host))
 
 
 def _is_blocked_host(host: str, allow_local: bool) -> bool:
@@ -59,6 +79,9 @@ def validate_target(
 
     host = _host_from_target(target)
     if not host:
+        return "invalid_target"
+
+    if not _is_valid_host(host):
         return "invalid_target"
 
     if _is_blocked_host(host, allow_local):

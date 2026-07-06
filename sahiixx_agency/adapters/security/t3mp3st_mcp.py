@@ -10,12 +10,22 @@ from typing import Any
 from sahiixx_agency.adapters.security.t3mp3st import T3mp3stAdapter
 from sahiixx_agency.core.models import RepoNode
 
+ClientSession: Any
+StdioServerParameters: Any
+stdio_client: Any
+
 try:
-    from mcp import ClientSession, StdioServerParameters, stdio_client
+    from mcp import ClientSession as _ClientSession
+    from mcp import StdioServerParameters as _StdioServerParameters
+    from mcp import stdio_client as _stdio_client
 except ImportError:  # pragma: no cover - fallback if mcp not installed
-    ClientSession = None  # type: ignore[misc, assignment]
-    StdioServerParameters = None  # type: ignore[misc, assignment]
-    stdio_client = None  # type: ignore[misc, assignment]
+    ClientSession = None
+    StdioServerParameters = None
+    stdio_client = None
+else:
+    ClientSession = _ClientSession
+    StdioServerParameters = _StdioServerParameters
+    stdio_client = _stdio_client
 
 
 class T3mp3stMcpAdapter(T3mp3stAdapter):
@@ -32,6 +42,16 @@ class T3mp3stMcpAdapter(T3mp3stAdapter):
 
     def _find_mcp_server_script(self, repo_path: Path) -> list[str] | None:
         """Discover the MCP server entrypoint inside the cloned repo."""
+        repo_root = repo_path.resolve()
+
+        def _safe_script_path(rel_path: str) -> Path | None:
+            candidate = (repo_path / rel_path).resolve()
+            try:
+                candidate.relative_to(repo_root)
+            except ValueError:
+                return None
+            return candidate if candidate.exists() else None
+
         package_json = repo_path / "package.json"
         if package_json.exists():
             with open(package_json, encoding="utf-8") as f:
@@ -40,9 +60,13 @@ class T3mp3stMcpAdapter(T3mp3stAdapter):
             if isinstance(bin_field, dict):
                 for name, rel_path in bin_field.items():
                     if "mcp" in name.lower() or "server" in name.lower():
-                        return ["node", str(repo_path / rel_path)]
+                        script_path = _safe_script_path(str(rel_path))
+                        if script_path is not None:
+                            return ["node", str(script_path)]
             if isinstance(bin_field, str):
-                return ["node", str(repo_path / bin_field)]
+                script_path = _safe_script_path(bin_field)
+                if script_path is not None:
+                    return ["node", str(script_path)]
 
         for candidate in [
             "dist/mcp-server.js",
@@ -52,27 +76,30 @@ class T3mp3stMcpAdapter(T3mp3stAdapter):
             "dist/index.js",
             "build/index.js",
         ]:
-            path = repo_path / candidate
-            if path.exists():
-                return ["node", str(path)]
+            script_path = _safe_script_path(candidate)
+            if script_path is not None:
+                return ["node", str(script_path)]
         return None
 
     def _pick_tool(self, tools: list[dict[str, Any]]) -> str | None:
         if self.tool_name:
             return self.tool_name
-        names = [t.get("name", "").lower() for t in tools]
+        names = [str(t.get("name", "")) for t in tools]
         for name in names:
-            if "recon" in name:
+            if "recon" in name.lower():
                 return name
         for name in names:
-            if "security" in name or "scan" in name:
+            if "security" in name.lower() or "scan" in name.lower():
                 return name
         return names[0] if names else None
 
     async def run(self, module: RepoNode, payload: dict[str, Any]) -> dict[str, Any]:
-        env, error = self._validate_payload(payload)
+        blocked_networks = module.adapter_config.get("blocked_targets")
+        env, error = self._validate_payload(payload, blocked_networks=blocked_networks)
         if error:
             return error
+
+        assert env is not None
 
         if stdio_client is None or ClientSession is None or StdioServerParameters is None:
             return await self._fallback(module, payload, reason="mcp_sdk_unavailable")
@@ -110,7 +137,6 @@ class T3mp3stMcpAdapter(T3mp3stAdapter):
                     arguments={
                         "target": payload["target"],
                         "mode": payload.get("mode", "lite"),
-                        "approval": payload.get("approval"),
                     },
                 )
                 return {

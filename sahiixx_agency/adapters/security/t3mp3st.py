@@ -24,6 +24,8 @@ class T3mp3stAdapter(BaseAdapter):
     def _validate_payload(
         self,
         payload: dict[str, Any],
+        *,
+        blocked_networks: list[str] | None = None,
     ) -> tuple[dict[str, str] | None, dict[str, Any] | None]:
         """Validate payload and build the safety environment dict.
 
@@ -34,6 +36,13 @@ class T3mp3stAdapter(BaseAdapter):
         approval = payload.get("approval")
         allow_local = payload.get("allow_local", False)
 
+        if not isinstance(target, str) or not target.strip():
+            return None, {
+                "status": "validation_error",
+                "error_code": "missing_target",
+                "message": "target must be a non-empty string",
+            }
+
         if mode not in {"lite", "full"}:
             return None, {
                 "status": "validation_error",
@@ -41,7 +50,7 @@ class T3mp3stAdapter(BaseAdapter):
                 "message": "mode must be 'lite' or 'full'",
             }
 
-        error = validate_target(target, allow_local=allow_local)
+        error = validate_target(target, allow_local=allow_local, blocked_networks=blocked_networks)
         if error:
             return None, {
                 "status": "validation_error",
@@ -79,12 +88,13 @@ class T3mp3stAdapter(BaseAdapter):
         return env, None
 
     async def run(self, module: RepoNode, payload: dict[str, Any]) -> dict[str, Any]:
-        env, error = self._validate_payload(payload)
+        blocked_networks = module.adapter_config.get("blocked_targets")
+        env, error = self._validate_payload(payload, blocked_networks=blocked_networks)
         if error:
             return error
 
         run_payload = {
-            **payload,
+            "command": payload.get("command", "run"),
             "env": env,
             "timeout": payload.get("timeout", 180),
         }

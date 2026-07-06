@@ -118,3 +118,43 @@ def test_validate_payload_returns_error_for_blocked_target(t3mp3st_module):
     env, error = adapter._validate_payload({"target": "localhost"})
     assert env is None
     assert error["error_code"] == "blocked_target"
+
+
+def test_validate_payload_rejects_invalid_mode():
+    adapter = T3mp3stAdapter(approval_token="secret")
+    env, error = adapter._validate_payload({"target": "example.com", "mode": "nuclear"})
+    assert env is None
+    assert error["error_code"] == "invalid_mode"
+
+
+def test_validate_payload_approval_mismatch():
+    adapter = T3mp3stAdapter(approval_token="secret")
+    env, error = adapter._validate_payload(
+        {"target": "example.com", "mode": "full", "approval": "wrong"}
+    )
+    assert env is None
+    assert error["error_code"] == "approval_mismatch"
+
+
+def test_validate_payload_approval_not_configured():
+    adapter = T3mp3stAdapter()
+    env, error = adapter._validate_payload({"target": "example.com", "mode": "full"})
+    assert env is None
+    assert error["error_code"] == "approval_not_configured"
+
+
+def test_validate_target_rejects_invalid_hostname():
+    assert validate_target("not a valid host!!!") == "invalid_target"
+
+
+def test_validate_payload_uses_custom_blocked_networks(t3mp3st_module):
+    adapter = T3mp3stAdapter()
+    module = t3mp3st_module.model_copy(
+        update={"adapter_config": {"blocked_targets": ["8.8.8.8/32"]}}
+    )
+    env, error = adapter._validate_payload(
+        {"target": "8.8.8.8"},
+        blocked_networks=module.adapter_config.get("blocked_targets"),
+    )
+    assert env is None
+    assert error["error_code"] == "blocked_target"

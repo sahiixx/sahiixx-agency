@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import os
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from .bus import MessageBus
@@ -109,7 +109,7 @@ class AgencyEngine:
     async def _execute_task(self, task: AgencyTask) -> None:
         """Execute a task by cloning and running the target module."""
         task.status = TaskStatus.RUNNING
-        task.started_at = task.started_at or datetime.now(UTC)
+        task.started_at = task.started_at or datetime.now(timezone.utc)
         self.memory.log_event("task.running", {"task_id": task.id})
 
         try:
@@ -132,7 +132,7 @@ class AgencyEngine:
                             "capabilities": mod.capabilities,
                             "execution": run_result,
                         }
-                    elif task.module_id.lower() == "career-ops":
+                    elif task.module_id.lower() in {"career-ops", "career_ops"}:
                         from sahiixx_agency.adapters.career.career_ops_adapter import CareerOpsAdapter
 
                         career_adapter = CareerOpsAdapter(
@@ -146,7 +146,7 @@ class AgencyEngine:
                             "capabilities": mod.capabilities,
                             "execution": run_result,
                         }
-                    elif task.module_id.lower() == "hiring-agent":
+                    elif task.module_id.lower() in {"hiring-agent", "hiring_agent"}:
                         from sahiixx_agency.adapters.hiring.hiring_agent_adapter import HiringAgentAdapter
 
                         hiring_adapter = HiringAgentAdapter(
@@ -220,7 +220,7 @@ class AgencyEngine:
                     }
 
             task.status = TaskStatus.COMPLETED
-            task.completed_at = datetime.now(UTC)
+            task.completed_at = datetime.now(timezone.utc)
             self.memory.log_event("task.completed", {"task_id": task.id})
         except Exception as exc:
             task.status = TaskStatus.FAILED
@@ -267,7 +267,7 @@ class AgencyEngine:
 
         repos: list[RepoNode] = []
         queries: list[str] = []
-        week_ago = (datetime.now(UTC) - timedelta(days=7)).strftime("%Y-%m-%d")
+        week_ago = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
 
         async with __import__("httpx").AsyncClient(timeout=30) as client:
             if report_type in ("trending", "velocity"):

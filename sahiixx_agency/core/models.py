@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
-from enum import StrEnum
+from datetime import datetime, timezone
+from enum import Enum
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
 
-class ModuleStatus(StrEnum):
+class ModuleStatus(str, Enum):
     """Lifecycle status of an agency module."""
 
     DISCOVERED = "discovered"
@@ -20,7 +20,7 @@ class ModuleStatus(StrEnum):
     EXPERIMENTAL = "experimental"
 
 
-class TaskStatus(StrEnum):
+class TaskStatus(str, Enum):
     """Status of an agency task."""
 
     PENDING = "pending"
@@ -31,7 +31,7 @@ class TaskStatus(StrEnum):
     CANCELLED = "cancelled"
 
 
-class RepoCategory(StrEnum):
+class RepoCategory(str, Enum):
     """Canonical categories for repos."""
 
     AGENT_FRAMEWORK = "agent_framework"
@@ -49,7 +49,7 @@ class RepoCategory(StrEnum):
     UNCATEGORIZED = "uncategorized"
 
 
-class RiskLevel(StrEnum):
+class RiskLevel(str, Enum):
     """Risk classification for a module or task."""
 
     LOW = "low"
@@ -108,7 +108,7 @@ class AgencyTask(BaseModel):
     payload: dict[str, Any] = Field(default_factory=dict)
     result: dict[str, Any] | None = Field(default=None)
     error: str | None = Field(default=None)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     started_at: datetime | None = Field(default=None)
     completed_at: datetime | None = Field(default=None)
     parent_id: str | None = Field(default=None)
@@ -122,7 +122,7 @@ class BusMessage(BaseModel):
     topic: str
     sender: str
     payload: dict[str, Any] = Field(default_factory=dict)
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     correlation_id: str | None = Field(default=None)
     priority: int = Field(default=0)
 
@@ -137,7 +137,7 @@ class IntelReport(BaseModel):
     raw_queries: list[str] = Field(default_factory=list)
     threats: list[str] = Field(default_factory=list)
     opportunities: list[str] = Field(default_factory=list)
-    generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class AgencyConfig(BaseModel):
@@ -184,7 +184,7 @@ class DiscoveryResult(BaseModel):
     entrypoint: list[str] | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
-    discovered_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    discovered_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ApprovalRequest(BaseModel):
@@ -194,7 +194,7 @@ class ApprovalRequest(BaseModel):
     task_id: str
     risk_level: RiskLevel
     reason: str
-    requested_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    requested_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     approved_at: datetime | None = None
     approved_by: str | None = None
     status: str = "pending"  # pending, approved, rejected

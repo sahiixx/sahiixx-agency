@@ -1,0 +1,137 @@
+"""MCP-native adapter for T3MP3ST with subprocess fallback."""
+
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+from typing import Any
+
+from sahiixx_agency.adapters.security.t3mp3st import T3mp3stAdapter
+from sahiixx_agency.core.models import RepoNode
+
+try:
+    from mcp import ClientSession, StdioServerParameters, stdio_client
+except ImportError:  # pragma: no cover - fallback if mcp not installed
+    ClientSession = None  # type: ignore[misc, assignment]
+    StdioServerParameters = None  # type: ignore[misc, assignment]
+    stdio_client = None  # type: ignore[misc, assignment]
+
+
+class T3mp3stMcpAdapter(T3mp3stAdapter):
+    """Adapter that invokes T3MP3ST via MCP, falling back to subprocess."""
+
+    def __init__(
+        self,
+        clone_base_dir: str = "./data/repos",
+        approval_token: str | None = None,
+        tool_name: str | None = None,
+    ) -> None:
+        super().__init__(clone_base_dir=clone_base_dir, approval_token=approval_token)
+        self.tool_name = tool_name
+
+    def _find_mcp_server_script(self, repo_path: Path) -> list[str] | None:
+        """Discover the MCP server entrypoint inside the cloned repo."""
+        package_json = repo_path / "package.json"
+        if package_json.exists():
+            with open(package_json, encoding="utf-8") as f:
+                pkg = json.load(f)
+            bin_field = pkg.get("bin")
+            if isinstance(bin_field, dict):
+                for name, rel_path in bin_field.items():
+                    if "mcp" in name.lower() or "server" in name.lower():
+                        return ["node", str(repo_path / rel_path)]
+            if isinstance(bin_field, str):
+                return ["node", str(repo_path / bin_field)]
+
+        for candidate in [
+            "dist/mcp-server.js",
+            "build/mcp-server.js",
+            "lib/mcp-server.js",
+            "mcp-server.js",
+            "dist/index.js",
+            "build/index.js",
+        ]:
+            path = repo_path / candidate
+            if path.exists():
+                return ["node", str(path)]
+        return None
+
+    def _pick_tool(self, tools: list[dict[str, Any]]) -> str | None:
+        if self.tool_name:
+            return self.tool_name
+        names = [t.get("name", "").lower() for t in tools]
+        for name in names:
+            if "recon" in name:
+                return name
+        for name in names:
+            if "security" in name or "scan" in name:
+                return name
+        return names[0] if names else None
+
+    async def run(self, module: RepoNode, payload: dict[str, Any]) -> dict[str, Any]:
+        env, error = self._validate_payload(payload)
+        if error:
+            return error
+
+        if stdio_client is None or ClientSession is None or StdioServerParameters is None:
+            return await self._fallback(module, payload, reason="mcp_sdk_unavailable")
+
+        try:
+            path = await self.runner.clone_manager.clone(module)
+        except Exception as exc:
+            return await self._fallback(module, payload, reason="clone_failed", error=str(exc))
+
+        server_cmd = self._find_mcp_server_script(path)
+        if server_cmd is None:
+            return await self._fallback(module, payload, reason="mcp_server_not_found")
+
+        run_env = {**os.environ, **env}
+        params = StdioServerParameters(
+            command=server_cmd[0],
+            args=server_cmd[1:],
+            env=run_env,
+        )
+
+        try:
+            async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
+                await session.initialize()
+                tools_result = await session.list_tools()
+                tools = [
+                    t.model_dump() if hasattr(t, "model_dump") else dict(t)
+                    for t in tools_result.tools
+                ]
+                tool_name = self._pick_tool(tools)
+                if tool_name is None:
+                    return await self._fallback(module, payload, reason="no_matching_mcp_tool")
+
+                result = await session.call_tool(
+                    tool_name,
+                    arguments={
+                        "target": payload["target"],
+                        "mode": payload.get("mode", "lite"),
+                        "approval": payload.get("approval"),
+                    },
+                )
+                return {
+                    "status": "success",
+                    "source": "mcp",
+                    "tool": tool_name,
+                    "result": result.model_dump() if hasattr(result, "model_dump") else dict(result),
+                }
+        except Exception as exc:
+            return await self._fallback(module, payload, reason="mcp_error", error=str(exc))
+
+    async def _fallback(
+        self,
+        module: RepoNode,
+        payload: dict[str, Any],
+        reason: str,
+        error: str | None = None,
+    ) -> dict[str, Any]:
+        result = await super().run(module, payload)
+        result["source"] = "subprocess"
+        result["fallback_reason"] = reason
+        if error:
+            result["fallback_error"] = error
+        return result

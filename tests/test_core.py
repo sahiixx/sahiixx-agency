@@ -403,3 +403,88 @@ def test_classify_repo_agent_framework_relaymux_letta():
     )
     assert category == RepoCategory.AGENT_FRAMEWORK
 
+
+@pytest.fixture
+def router_with_five_new_modules(tmp_path):
+    config = AgencyConfig(
+        data_dir=str(tmp_path),
+        routing_rules=[
+            {"pattern": "relaymux|telegram|tmux|remote.agent", "target": "relaymux"},
+            {"pattern": "obsidian|second.brain|vault|wiki|notes", "target": "claude_obsidian"},
+            {"pattern": "youtube|video|channel|content|media", "target": "youtube_agent"},
+            {"pattern": "letta|persistent.memory|stateful.agent|local.agent", "target": "letta_code"},
+            {"pattern": "job|career|apply|linkedin|cv|resume", "target": "career_ops"},
+        ],
+        ecosystem={
+            "relaymux": {
+                "repo": "relaymux",
+                "owner": "mupt-ai",
+                "url": "https://github.com/mupt-ai/relaymux",
+                "role": "Telegram remote control",
+            },
+            "claude_obsidian": {
+                "repo": "claude-obsidian",
+                "owner": "AgriciDaniel",
+                "url": "https://github.com/AgriciDaniel/claude-obsidian",
+                "role": "Obsidian second brain",
+            },
+            "youtube_agent": {
+                "repo": "youtube-automation-agent",
+                "owner": "darkzOGx",
+                "url": "https://github.com/darkzOGx/youtube-automation-agent",
+                "role": "YouTube automation",
+            },
+            "letta_code": {
+                "repo": "letta-code",
+                "owner": "letta-ai",
+                "url": "https://github.com/letta-ai/letta-code",
+                "role": "Stateful local agents",
+            },
+            "career_ops": {
+                "repo": "career-ops",
+                "owner": "santifer",
+                "url": "https://github.com/santifer/career-ops",
+                "role": "AI job search",
+            },
+        },
+    )
+    registry = RepoRegistry(data_dir=str(tmp_path))
+    for key in ("relaymux", "claude_obsidian", "youtube_agent", "letta_code", "career_ops"):
+        registry._modules[key] = RepoNode(
+            id=key,
+            name=key.replace("_", "-"),
+            full_name=f"owner/{key.replace('_', '-')}",
+            url=f"https://github.com/owner/{key.replace('_', '-')}",
+        )
+    return TaskRouter(registry, MessageBus(), config=config)
+
+
+@pytest.mark.asyncio
+async def test_router_resolves_relaymux_intent(router_with_five_new_modules):
+    task = await router_with_five_new_modules.route("launch a remote agent via telegram")
+    assert task.module_id == "relaymux"
+
+
+@pytest.mark.asyncio
+async def test_router_resolves_obsidian_intent(router_with_five_new_modules):
+    task = await router_with_five_new_modules.route("open my obsidian second brain vault")
+    assert task.module_id == "claude_obsidian"
+
+
+@pytest.mark.asyncio
+async def test_router_resolves_youtube_intent(router_with_five_new_modules):
+    task = await router_with_five_new_modules.route("automate my youtube channel")
+    assert task.module_id == "youtube_agent"
+
+
+@pytest.mark.asyncio
+async def test_router_resolves_letta_intent(router_with_five_new_modules):
+    task = await router_with_five_new_modules.route("run a stateful letta agent with memory")
+    assert task.module_id == "letta_code"
+
+
+@pytest.mark.asyncio
+async def test_router_resolves_career_intent(router_with_five_new_modules):
+    task = await router_with_five_new_modules.route("apply to jobs on linkedin")
+    assert task.module_id == "career_ops"
+

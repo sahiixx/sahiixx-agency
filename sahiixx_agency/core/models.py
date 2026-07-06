@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from enum import Enum
+from datetime import UTC, datetime
+from enum import StrEnum
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
 
-class ModuleStatus(str, Enum):
+class ModuleStatus(StrEnum):
     """Lifecycle status of an agency module."""
 
     DISCOVERED = "discovered"
@@ -20,7 +20,7 @@ class ModuleStatus(str, Enum):
     EXPERIMENTAL = "experimental"
 
 
-class TaskStatus(str, Enum):
+class TaskStatus(StrEnum):
     """Status of an agency task."""
 
     PENDING = "pending"
@@ -31,7 +31,7 @@ class TaskStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
-class RepoCategory(str, Enum):
+class RepoCategory(StrEnum):
     """Canonical categories for repos."""
 
     AGENT_FRAMEWORK = "agent_framework"
@@ -47,6 +47,15 @@ class RepoCategory(str, Enum):
     CAREER = "career"                      # Job search / career agents
     FORK = "fork"
     UNCATEGORIZED = "uncategorized"
+
+
+class RiskLevel(StrEnum):
+    """Risk classification for a module or task."""
+
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
 
 
 class RoutingRule(BaseModel):
@@ -84,6 +93,8 @@ class RepoNode(BaseModel):
     adapter_config: dict[str, Any] = Field(default_factory=dict)
     local_path: str | None = Field(default=None)
     last_synced: datetime | None = Field(default=None)
+    source: str = Field(default="registry")
+    risk_level: RiskLevel = Field(default=RiskLevel.LOW)
 
 
 class AgencyTask(BaseModel):
@@ -97,7 +108,7 @@ class AgencyTask(BaseModel):
     payload: dict[str, Any] = Field(default_factory=dict)
     result: dict[str, Any] | None = Field(default=None)
     error: str | None = Field(default=None)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     started_at: datetime | None = Field(default=None)
     completed_at: datetime | None = Field(default=None)
     parent_id: str | None = Field(default=None)
@@ -111,7 +122,7 @@ class BusMessage(BaseModel):
     topic: str
     sender: str
     payload: dict[str, Any] = Field(default_factory=dict)
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
     correlation_id: str | None = Field(default=None)
     priority: int = Field(default=0)
 
@@ -126,7 +137,7 @@ class IntelReport(BaseModel):
     raw_queries: list[str] = Field(default_factory=list)
     threats: list[str] = Field(default_factory=list)
     opportunities: list[str] = Field(default_factory=list)
-    generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class AgencyConfig(BaseModel):
@@ -158,3 +169,33 @@ class AgencyConfig(BaseModel):
         default_factory=dict,
         description="Named ecosystem modules with repo, url, role, bus_channel, etc.",
     )
+
+
+class DiscoveryResult(BaseModel):
+    """A repo discovered from an external source."""
+
+    full_name: str
+    url: str
+    description: str = ""
+    stars: int = 0
+    language: str = "Unknown"
+    source: str = "discovery"
+    risk_level: RiskLevel = RiskLevel.LOW
+    entrypoint: list[str] | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    discovered_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class ApprovalRequest(BaseModel):
+    """A pending human approval for a risky task."""
+
+    id: str
+    task_id: str
+    risk_level: RiskLevel
+    reason: str
+    requested_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    approved_at: datetime | None = None
+    approved_by: str | None = None
+    status: str = "pending"  # pending, approved, rejected
+

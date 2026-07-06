@@ -13,22 +13,35 @@ def t3mp3st_module(tmp_path):
     return RepoNode(
         id="T3MP3ST",
         name="T3MP3ST",
+        owner="elder-plinius",
         full_name="elder-plinius/T3MP3ST",
         url="https://github.com/elder-plinius/T3MP3ST",
         clone_url="https://github.com/elder-plinius/T3MP3ST.git",
     )
 
 
+@pytest.fixture
+def t3mp3st_adapter(tmp_path):
+    return T3mp3stMcpAdapter(clone_base_dir=str(tmp_path), approval_token="secret")
+
+
 @pytest.mark.asyncio
-async def test_mcp_adapter_falls_back_when_server_unavailable(t3mp3st_module, monkeypatch):
-    adapter = T3mp3stMcpAdapter(approval_token="secret")
+async def test_mcp_adapter_falls_back_when_server_unavailable(
+    t3mp3st_module, t3mp3st_adapter, monkeypatch, tmp_path
+):
+    async def fake_clone(node):
+        repo_path = tmp_path / node.owner / node.name
+        repo_path.mkdir(parents=True, exist_ok=True)
+        return repo_path
+
+    monkeypatch.setattr(t3mp3st_adapter.runner.clone_manager, "clone", fake_clone)
 
     async def fake_subprocess_run(self, module, payload):
         return {"status": "success", "source": "subprocess", "module": module.name}
 
     monkeypatch.setattr("sahiixx_agency.adapters.base.BaseAdapter.run", fake_subprocess_run)
 
-    result = await adapter.run(t3mp3st_module, {"target": "example.com"})
+    result = await t3mp3st_adapter.run(t3mp3st_module, {"target": "example.com"})
     assert result["status"] == "success"
     assert result["source"] == "subprocess"
     assert result["fallback_reason"] == "mcp_server_not_found"

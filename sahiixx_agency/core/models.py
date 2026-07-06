@@ -140,6 +140,28 @@ class IntelReport(BaseModel):
     generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
+class DiscoveryConfig(BaseModel):
+    """External discovery feed settings."""
+
+    enabled: bool = Field(default=True)
+    min_stars: int = Field(default=50)
+    languages: list[str] = Field(
+        default_factory=lambda: ["python", "typescript", "javascript", "go", "rust"]
+    )
+    subreddits: list[str] = Field(
+        default_factory=lambda: ["MachineLearning", "webdev", "LocalLLaMA", "selfhosted"]
+    )
+    auto_clone: bool = Field(default=False)
+    schedule: str = Field(default="0 6 * * *")
+
+
+class ApprovalConfig(BaseModel):
+    """Human-in-the-loop approval gate settings."""
+
+    auto_approve_low_risk: bool = Field(default=True)
+    require_approval_for: list[str] = Field(default_factory=lambda: ["high", "critical"])
+
+
 class AgencyConfig(BaseModel):
     """Runtime configuration for the agency."""
 
@@ -169,6 +191,10 @@ class AgencyConfig(BaseModel):
         default_factory=dict,
         description="Named ecosystem modules with repo, url, role, bus_channel, etc.",
     )
+    # Discovery feed defaults loaded from agency.yaml
+    discovery: DiscoveryConfig = Field(default_factory=DiscoveryConfig)
+    # Approval gate settings loaded from agency.yaml
+    approval: ApprovalConfig = Field(default_factory=ApprovalConfig)
 
 
 class DiscoveryResult(BaseModel):

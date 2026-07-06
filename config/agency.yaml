@@ -3,7 +3,7 @@ github_username: "sahiixx"
 github_token: null  # Set via GITHUB_TOKEN env var
 
 api_host: "0.0.0.0"
-api_port: 8080
+api_port: 8082
 dashboard_port: 3000
 mcp_port: 8081
 
@@ -12,6 +12,19 @@ data_dir: "./data"
 
 auto_sync_interval_minutes: 60
 log_level: "INFO"
+
+# ─── Discovery Settings ────────────────────────────────────────
+discovery:
+  enabled: true
+  min_stars: 50
+  languages: ["python", "typescript", "javascript", "go", "rust"]
+  subreddits: ["MachineLearning", "webdev", "LocalLLaMA", "selfhosted"]
+  auto_clone: false
+  schedule: "0 6 * * *"
+
+approval:
+  auto_approve_low_risk: true
+  require_approval_for: ["high", "critical"]
 
 # Optional LLM integration for enhanced routing
 default_llm: null  # e.g. "openai/gpt-4o"
@@ -220,7 +233,7 @@ ecosystem:
 
 # ─── Routing Rules ─────────────────────────────────────────────
 routing_rules:
-  - pattern: "t3mp3st|red.team|offensive|0-day|zero.day|exploit|pentest|recon|security"
+  - pattern: "t3mp3st|red.team|offensive|0-day|zero.day|exploit|pentest|recon|scan|vuln|vulnerability|security"
     target: t3mp3st
   - pattern: "voice|speak|listen|call"
     target: friday
@@ -242,14 +255,16 @@ routing_rules:
     target: clearwing
   - pattern: "relaymux|telegram|tmux|remote.agent"
     target: relaymux
+  - pattern: "montage|video production|remotion|openmontage|produce a video|make a video"
+    target: openmontage
+  - pattern: "youtube|video automation|channel management|content automation|scriptwriting|thumbnail"
+    target: youtube_automation_agent
   - pattern: "obsidian|second.brain|vault|wiki|notes"
     target: claude_obsidian
-  - pattern: "youtube|video|channel|content|media"
-    target: youtube_agent
   - pattern: "letta|persistent.memory|stateful.agent|local.agent"
     target: letta_code
   - pattern: "job|career|apply|linkedin|cv|resume"
     target: career_ops
-  - pattern: "html|landing.page|landingpage|deck|magazine|report|social.post|generate.page|cinematic|html-anything"
+  - pattern: "html|landing.page|landingpage|deck|magazine|report|social.post|generate.page|cinematic|html-anything|nexu-io|open design"
     target: html_anything
 

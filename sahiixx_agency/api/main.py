@@ -193,6 +193,22 @@ async def get_task(task_id: str, engine: Annotated[AgencyEngine, Depends(get_eng
     return task.model_dump(mode="json")
 
 
+@app.post("/tasks/{task_id}/approve")
+async def approve_task(
+    task_id: str,
+    engine: Annotated[AgencyEngine, Depends(get_engine)],
+) -> dict[str, Any]:
+    """Approve a pending high-risk task and re-queue it for execution."""
+    task = engine.get_task(task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    req = engine.approve_task(task_id, by="dashboard")
+    if req is None:
+        raise HTTPException(status_code=400, detail="No approval request for task")
+    await engine._task_queue.put(task)
+    return {"status": "approved", "request_id": req.id}
+
+
 # ---------- Intel ----------
 
 

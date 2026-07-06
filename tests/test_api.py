@@ -108,3 +108,41 @@ def test_get_task_status_flow(client):
 def test_get_task_not_found(client):
     resp = client.get("/tasks/task_does_not_exist")
     assert resp.status_code == 404
+
+
+def test_approve_task_endpoint(client):
+    create = client.post(
+        "/dispatch",
+        json={"intent": "run voice assistant", "payload": {"risk_level": "critical"}},
+    )
+    assert create.status_code == 200
+    task_id = create.json()["id"]
+
+    approve = client.post(f"/tasks/{task_id}/approve")
+    assert approve.status_code == 200
+    assert approve.json()["status"] == "approved"
+
+    status = "pending"
+    for _ in range(20):
+        resp = client.get(f"/tasks/{task_id}")
+        status = resp.json()["status"]
+        if status in ("completed", "failed"):
+            break
+        time.sleep(0.05)
+
+    assert status == "completed"
+
+
+def test_approve_task_not_found(client):
+    resp = client.post("/tasks/task_does_not_exist/approve")
+    assert resp.status_code == 404
+
+
+def test_approve_task_no_request(client):
+    create = client.post("/tasks", params={"intent": "run voice assistant"})
+    assert create.status_code == 200
+    task_id = create.json()["id"]
+
+    resp = client.post(f"/tasks/{task_id}/approve")
+    assert resp.status_code == 400
+    assert "No approval request" in resp.json()["detail"]

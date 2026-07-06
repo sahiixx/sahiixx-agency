@@ -11,7 +11,17 @@ from typing import Any
 from .approval import ApprovalManager
 from .bus import MessageBus
 from .memory import AgencyMemory
-from .models import AgencyConfig, AgencyTask, IntelReport, ModuleStatus, RepoCategory, RepoNode, RiskLevel, TaskStatus
+from .models import (
+    AgencyConfig,
+    AgencyTask,
+    ApprovalRequest,
+    IntelReport,
+    ModuleStatus,
+    RepoCategory,
+    RepoNode,
+    RiskLevel,
+    TaskStatus,
+)
 from .registry import RepoRegistry
 from .router import TaskRouter
 from .runner import CloneManager, RepoRunner
@@ -68,10 +78,9 @@ class AgencyEngine:
     def get_task(self, task_id: str) -> AgencyTask | None:
         return self._tasks.get(task_id)
 
-    def approve_task(self, task_id: str, by: str = "operator") -> bool:
+    def approve_task(self, task_id: str, by: str = "operator") -> ApprovalRequest | None:
         """Approve a pending risky task by task id."""
-        req = self.approval_manager.approve_by_task(task_id, by)
-        return req is not None
+        return self.approval_manager.approve_by_task(task_id, by)
 
     def list_tasks(self, limit: int = 50) -> list[AgencyTask]:
         sorted_tasks = sorted(self._tasks.values(), key=lambda t: t.created_at, reverse=True)

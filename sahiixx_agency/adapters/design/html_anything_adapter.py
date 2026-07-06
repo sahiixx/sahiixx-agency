@@ -242,7 +242,7 @@ class HtmlAnythingAdapter:
             return install_result
 
         command = self._build_command(project_dir, surface)
-        result = self._run_subprocess(project_dir, command)
+        result = self._start_dev_server(project_dir, command)
         if not result.ok and self.fallback_on_failure:
             simulated = self._simulate(project_dir, brief, surface)
             simulated.metadata["original_error"] = result.stderr[:500]
@@ -250,8 +250,94 @@ class HtmlAnythingAdapter:
             return simulated
         return result
 
+    def _start_dev_server(self, project_dir: Path, command: list[str]) -> HtmlAnythingResult:
+        """Launch the HTML-Anything dev server and verify it accepts traffic.
+
+        The dev server is a long-running process, so it is started with
+        ``subprocess.Popen`` and polled on ``localhost:3000``. If the port
+        becomes reachable within ``startup_timeout`` seconds the adapter reports
+        ``status="running"`` and returns the process pid; otherwise the process
+        is terminated and an error result is returned.
+        """
+        import socket
+        import time
+
+        command_str = " ".join(command)
+        run_env = {**os.environ, **self.env}
+        startup_timeout = 15
+        try:
+            proc = subprocess.Popen(
+                command,
+                cwd=str(self.repo_dir),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                env=run_env,
+            )
+        except Exception as exc:  # noqa: BLE001
+            return HtmlAnythingResult(
+                ok=False,
+                brief="",
+                surface="",
+                command=command_str,
+                returncode=-1,
+                stdout="",
+                stderr=str(exc),
+                cwd=str(self.repo_dir),
+                project_dir=str(project_dir),
+                status="exception",
+                metadata={"timeout": self.timeout, "fallback": False},
+            )
+
+        deadline = time.monotonic() + startup_timeout
+        reached = False
+        while time.monotonic() < deadline:
+            if proc.poll() is not None:
+                break
+            try:
+                with socket.create_connection(("127.0.0.1", 3000), timeout=1):
+                    reached = True
+                    break
+            except OSError:
+                time.sleep(0.5)
+
+        if reached:
+            return HtmlAnythingResult(
+                ok=True,
+                brief="",
+                surface="",
+                command=command_str,
+                returncode=0,
+                stdout="HTML-Anything dev server listening on http://localhost:3000",
+                stderr="",
+                cwd=str(self.repo_dir),
+                project_dir=str(project_dir),
+                status="running",
+                metadata={"timeout": self.timeout, "fallback": False, "pid": proc.pid},
+            )
+
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+        return HtmlAnythingResult(
+            ok=False,
+            brief="",
+            surface="",
+            command=command_str,
+            returncode=proc.returncode if proc.returncode is not None else -1,
+            stdout="",
+            stderr="Dev server did not start on port 3000",
+            cwd=str(self.repo_dir),
+            project_dir=str(project_dir),
+            status="error",
+            metadata={"timeout": self.timeout, "fallback": False},
+        )
+
     async def run(self, node: RepoNode, payload: dict[str, Any]) -> dict[str, Any]:
         """Conform to the agency adapter interface: run from RepoNode + payload."""
+        import asyncio
+
         brief = payload.get("brief") or payload.get("intent") or ""
         surface = payload.get("surface")
         project_name = payload.get("project_name")
@@ -261,7 +347,8 @@ class HtmlAnythingAdapter:
                 "status": "failed",
                 "error": "No brief provided in payload",
             }
-        result = self.dispatch(
+        result = await asyncio.to_thread(
+            self.dispatch,
             brief=brief,
             surface=surface,
             project_name=project_name,

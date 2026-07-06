@@ -414,6 +414,7 @@ def router_with_five_new_modules(tmp_path):
             {"pattern": "youtube|video|channel|content|media", "target": "youtube_agent"},
             {"pattern": "letta|persistent.memory|stateful.agent|local.agent", "target": "letta_code"},
             {"pattern": "job|career|apply|linkedin|cv|resume", "target": "career_ops"},
+            {"pattern": "html|landing.page|landingpage|deck|magazine|report|social.post|generate.page|cinematic|html-anything", "target": "html_anything"},
         ],
         ecosystem={
             "relaymux": {
@@ -446,10 +447,16 @@ def router_with_five_new_modules(tmp_path):
                 "url": "https://github.com/santifer/career-ops",
                 "role": "AI job search",
             },
+            "html_anything": {
+                "repo": "html-anything",
+                "owner": "nexu-io",
+                "url": "https://github.com/nexu-io/html-anything",
+                "role": "AI HTML generator",
+            },
         },
     )
     registry = RepoRegistry(data_dir=str(tmp_path))
-    for key in ("relaymux", "claude_obsidian", "youtube_agent", "letta_code", "career_ops"):
+    for key in ("relaymux", "claude_obsidian", "youtube_agent", "letta_code", "career_ops", "html_anything"):
         registry._modules[key] = RepoNode(
             id=key,
             name=key.replace("_", "-"),
@@ -457,6 +464,12 @@ def router_with_five_new_modules(tmp_path):
             url=f"https://github.com/owner/{key.replace('_', '-')}",
         )
     return TaskRouter(registry, MessageBus(), config=config)
+
+
+@pytest.mark.asyncio
+async def test_router_resolves_html_anything_intent(router_with_five_new_modules):
+    task = await router_with_five_new_modules.route("generate a landing page from this prompt")
+    assert task.module_id == "html_anything"
 
 
 @pytest.mark.asyncio

@@ -8,9 +8,10 @@ import os
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from .approval import ApprovalManager
 from .bus import MessageBus
 from .memory import AgencyMemory
-from .models import AgencyConfig, AgencyTask, IntelReport, ModuleStatus, RepoCategory, RepoNode, TaskStatus
+from .models import AgencyConfig, AgencyTask, IntelReport, ModuleStatus, RepoCategory, RepoNode, RiskLevel, TaskStatus
 from .registry import RepoRegistry
 from .router import TaskRouter
 from .runner import CloneManager, RepoRunner
@@ -32,6 +33,7 @@ class AgencyEngine:
             backend=self.config.memory_backend,
         )
         self.runner = RepoRunner(CloneManager(os.path.join(self.config.data_dir, "repos")))
+        self.approval_manager = ApprovalManager()
         self._running = False
         self._worker_task: asyncio.Task[Any] | None = None
         self._task_queue: asyncio.Queue[AgencyTask] = asyncio.Queue()
@@ -65,6 +67,11 @@ class AgencyEngine:
 
     def get_task(self, task_id: str) -> AgencyTask | None:
         return self._tasks.get(task_id)
+
+    def approve_task(self, task_id: str, by: str = "operator") -> bool:
+        """Approve a pending risky task by task id."""
+        req = self.approval_manager.approve_by_task(task_id, by)
+        return req is not None
 
     def list_tasks(self, limit: int = 50) -> list[AgencyTask]:
         sorted_tasks = sorted(self._tasks.values(), key=lambda t: t.created_at, reverse=True)
@@ -106,8 +113,37 @@ class AgencyEngine:
             )
         return None
 
+    def _risk_level_for_task(self, task: AgencyTask) -> RiskLevel:
+        """Determine task risk from payload or target module."""
+        payload_risk = task.payload.get("risk_level")
+        if payload_risk:
+            try:
+                return RiskLevel(payload_risk.lower())
+            except ValueError:
+                pass
+        if task.module_id:
+            mod = self._resolve_module(task.module_id)
+            if mod is not None:
+                return mod.risk_level
+        return RiskLevel.LOW
+
+    def _requires_approval(self, risk_level: RiskLevel) -> bool:
+        """High and critical risk tasks require human approval."""
+        return risk_level in {RiskLevel.HIGH, RiskLevel.CRITICAL}
+
     async def _execute_task(self, task: AgencyTask) -> None:
         """Execute a task by cloning and running the target module."""
+        risk_level = self._risk_level_for_task(task)
+        if self._requires_approval(risk_level) and not self.approval_manager.is_approved(task.id):
+            self.approval_manager.request_approval(
+                task,
+                risk_level,
+                f"Risky execution: {task.intent}",
+            )
+            task.status = TaskStatus.PENDING
+            self.memory.log_event("task.awaiting_approval", {"task_id": task.id, "risk_level": risk_level.value})
+            return
+
         task.status = TaskStatus.RUNNING
         task.started_at = task.started_at or datetime.now(timezone.utc)
         self.memory.log_event("task.running", {"task_id": task.id})

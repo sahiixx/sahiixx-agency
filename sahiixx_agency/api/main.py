@@ -7,7 +7,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Annotated, Any
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Body, Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -204,6 +204,61 @@ async def run_intel(
 ) -> dict[str, Any]:
     report = await engine.run_intel_scout(report_type, min_stars=min_stars)
     return report.model_dump(mode="json")
+
+
+# ---------- Discovery ----------
+
+
+class DiscoveryRunRequest(BaseModel):
+    min_stars: int = 0
+    auto_clone: bool = False
+
+
+@app.post("/discovery/run")
+async def run_discovery(
+    request: Annotated[DiscoveryRunRequest, Body(default_factory=DiscoveryRunRequest)],
+) -> dict[str, Any]:
+    """Run the discovery pipeline and return newly discovered repos."""
+    from sahiixx_agency.discovery.pipeline import DiscoveryPipeline
+
+    pipeline = DiscoveryPipeline(min_stars=request.min_stars, auto_clone=request.auto_clone)
+    nodes = await pipeline.run()
+    return {"discovered": len(nodes), "repos": [n.model_dump(mode="json") for n in nodes[:50]]}
+
+
+@app.get("/discovery/trending")
+async def list_trending() -> list[dict[str, Any]]:
+    """Return the most recent daily snapshot of discovered repos."""
+    from datetime import datetime, timezone
+    from pathlib import Path
+
+    from sahiixx_agency.core.models import DiscoveryResult
+
+    data_dir = Path("./data/discovery")
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    path = data_dir / f"{today}.jsonl"
+    if not path.exists():
+        return []
+    results = []
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                results.append(DiscoveryResult.model_validate_json(line).model_dump(mode="json"))
+    return results
+
+
+@app.get("/discovery/snapshots")
+async def list_snapshots() -> list[dict[str, Any]]:
+    """List available discovery snapshot files."""
+    from pathlib import Path
+
+    data_dir = Path("./data/discovery")
+    snapshots: list[dict[str, Any]] = []
+    if data_dir.exists():
+        for path in sorted(data_dir.glob("*.jsonl")):
+            snapshots.append({"date": path.stem, "filename": path.name, "path": str(path)})
+    return snapshots
 
 
 # ---------- Dashboard ----------

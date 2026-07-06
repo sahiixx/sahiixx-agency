@@ -4,6 +4,59 @@
 
 @layer base {
   :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 193 100% 50%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 193 100% 50%;
+    --radius: 0.625rem;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 193 100% 50%;
+    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 193 100% 50%;
+
+    /* AI Nexus design tokens - Light */
+    --bg-base: #f8fafc;
+    --bg-surface: #ffffff;
+    --bg-elevated: #f1f5f9;
+    --bg-glass: rgba(255, 255, 255, 0.8);
+    --accent-cyan: #0891b2;
+    --accent-purple: #7c3aed;
+    --accent-magenta: #d946ef;
+    --accent-green: #16a34a;
+    --accent-amber: #d97706;
+    --accent-red: #dc2626;
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #94a3b8;
+    --text-inverse: #f8fafc;
+
+    /* Shadows & Glows */
+    --glow-node: 0 0 20px var(--glow-color), 0 0 40px var(--glow-color);
+    --shadow-panel: 0 8px 32px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0,0,0,0.05);
+    --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0,0,0,0.03);
+    --glow-ambient: radial-gradient(ellipse 80% 50% at 50% -20%, rgba(139,92,246,0.05), transparent);
+  }
+
+  .dark {
     --background: 240 33% 2%;
     --foreground: 210 40% 96%;
     --card: 240 33% 4%;
@@ -23,7 +76,6 @@
     --border: 240 33% 12%;
     --input: 240 33% 12%;
     --ring: 193 100% 50%;
-    --radius: 0.625rem;
     --sidebar-background: 240 33% 4%;
     --sidebar-foreground: 210 40% 96%;
     --sidebar-primary: 193 100% 50%;
@@ -33,7 +85,7 @@
     --sidebar-border: 240 33% 12%;
     --sidebar-ring: 193 100% 50%;
 
-    /* AI Nexus design tokens */
+    /* AI Nexus design tokens - Dark */
     --bg-base: #050508;
     --bg-surface: #0a0a12;
     --bg-elevated: #11111a;
@@ -50,7 +102,6 @@
     --text-inverse: #0f172a;
 
     /* Shadows & Glows */
-    --glow-node: 0 0 20px var(--glow-color), 0 0 40px var(--glow-color);
     --shadow-panel: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.05);
     --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255,255,255,0.03);
     --glow-ambient: radial-gradient(ellipse 80% 50% at 50% -20%, rgba(139,92,246,0.08), transparent);
@@ -67,11 +118,19 @@
 
 @layer components {
   .glass-panel {
-    background: rgba(10, 10, 18, 0.72);
+    background: var(--bg-glass);
     backdrop-filter: blur(20px) saturate(1.2);
     -webkit-backdrop-filter: blur(20px) saturate(1.2);
     border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: 16px;
+  }
+
+  .dark .glass-panel {
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  :root:not(.dark) .glass-panel {
+    border: 1px solid rgba(0, 0, 0, 0.08);
   }
 
   .glass-input {
@@ -81,11 +140,31 @@
     border-radius: 10px;
   }
 
+  .dark .glass-input {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  :root:not(.dark) .glass-input {
+    background: rgba(0, 0, 0, 0.02);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+  }
+
   .glass-tag {
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
     backdrop-filter: blur(8px);
     border-radius: 9999px;
+  }
+
+  .dark .glass-tag {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  :root:not(.dark) .glass-tag {
+    background: rgba(0, 0, 0, 0.03);
+    border: 1px solid rgba(0, 0, 0, 0.08);
   }
 }
 

@@ -191,6 +191,7 @@ class RepoRegistry:
             for item in data.get("modules", []):
                 node = RepoNode.model_validate(item)
                 self._modules[node.id] = node
+            # Persist with current schema keys on next save.
 
     def _save(self) -> None:
         payload = {

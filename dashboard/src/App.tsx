@@ -1,9 +1,10 @@
 import { Component, type ReactNode } from 'react'
-import { Routes, Route, useLocation } from 'react-router-dom'
+import { Routes, Route, useLocation, Navigate } from 'react-router-dom'
 import { AnimatePresence } from 'framer-motion'
 import { Toaster } from 'sonner'
 import Layout from './components/Layout'
 import Home from './pages/Home'
+import Agency from './pages/Agency'
 import { TodoPage } from './components/todos/TodoPage'
 import { ContactPage } from './components/contact/ContactPage'
 import { AboutPage } from './components/about/AboutPage'
@@ -78,7 +79,13 @@ export default function App() {
       <Layout>
         <AnimatePresence mode="wait">
           <Routes location={location} key={location.pathname}>
-            <Route path="/" element={<Home />} />
+            <Route path="/" element={<Agency />} />
+            <Route path="/graph" element={<Home />} />
+            <Route path="/chat" element={<Navigate to="/" replace />} />
+            <Route path="/tasks" element={<Agency />} />
+            <Route path="/discovery" element={<Agency />} />
+            <Route path="/approvals" element={<Agency />} />
+            <Route path="/memory" element={<Agency />} />
             <Route path="/todos" element={<TodoPage />} />
             <Route path="/contact" element={<ContactPage />} />
             <Route path="/about" element={<AboutPage />} />

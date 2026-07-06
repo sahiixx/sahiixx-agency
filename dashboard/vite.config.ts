@@ -10,9 +10,9 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
-      '/dashboard/graph-data': 'http://localhost:8080',
+      '/dashboard/graph-data': 'http://localhost:8082',
       '/api': {
-        target: 'http://localhost:8080',
+        target: 'http://localhost:8082',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
       },

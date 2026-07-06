@@ -153,6 +153,60 @@ ecosystem:
     priority: 2
     tags: [hiring, hr, resume, evaluation, hackerrank]
 
+  # ── Agent Runtimes ──
+  relaymux:
+    repo: relaymux
+    owner: mupt-ai
+    url: https://github.com/mupt-ai/relaymux
+    role: "Telegram remote control for tmux-based coding agents"
+    bus_channel: "agent.*"
+    protocol: subprocess
+    priority: 2
+    tags: [agent, telegram, tmux, remote, relaymux]
+
+  letta_code:
+    repo: letta-code
+    owner: letta-ai
+    url: https://github.com/letta-ai/letta-code
+    role: "Stateful local agents with persistent memory"
+    bus_channel: "agent.*"
+    protocol: subprocess
+    priority: 2
+    tags: [agent, memory, stateful, letta, local]
+
+  # ── Knowledge / Second Brain ──
+  claude_obsidian:
+    repo: claude-obsidian
+    owner: AgriciDaniel
+    url: https://github.com/AgriciDaniel/claude-obsidian
+    role: "Obsidian vault + Claude Code second-brain workflow"
+    bus_channel: "knowledge.*"
+    protocol: subprocess
+    priority: 2
+    tags: [obsidian, knowledge, vault, wiki, claude]
+
+  # ── Content / Media ──
+  youtube_agent:
+    repo: youtube-automation-agent
+    owner: darkzOGx
+    url: https://github.com/darkzOGx/youtube-automation-agent
+    role: "Automated YouTube channel management"
+    bus_channel: "content.*"
+    protocol: subprocess
+    priority: 2
+    tags: [youtube, content, media, video, channel]
+
+  # ── Career / Hiring ──
+  career_ops:
+    repo: career-ops
+    owner: santifer
+    url: https://github.com/santifer/career-ops
+    role: "AI job-search command center built on Claude Code"
+    bus_channel: "career.*"
+    protocol: subprocess
+    priority: 2
+    tags: [career, job, resume, cv, hiring]
+
 # ─── Routing Rules ─────────────────────────────────────────────
 routing_rules:
   - pattern: "t3mp3st|red.team|offensive|0-day|zero.day|exploit|pentest|recon|security"
@@ -175,4 +229,14 @@ routing_rules:
     target: hiring_agent
   - pattern: "pentest|scan|exploit|vuln|security"
     target: clearwing
+  - pattern: "relaymux|telegram|tmux|remote.agent"
+    target: relaymux
+  - pattern: "obsidian|second.brain|vault|wiki|notes"
+    target: claude_obsidian
+  - pattern: "youtube|video|channel|content|media"
+    target: youtube_agent
+  - pattern: "letta|persistent.memory|stateful.agent|local.agent"
+    target: letta_code
+  - pattern: "job|career|apply|linkedin|cv|resume"
+    target: career_ops
 

@@ -51,6 +51,7 @@ Thumbs.db
 screenshots/
 scratch/
 *.tmp
+dashboard-*.png
 
 # Environment / secrets
 .env

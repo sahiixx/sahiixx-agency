@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import shlex
 import subprocess
@@ -10,6 +11,9 @@ from pathlib import Path
 from typing import Any
 
 from .models import RepoNode
+from .security import AuditLogger, NetworkPolicy
+
+logger = logging.getLogger(__name__)
 
 
 class CloneManager:
@@ -150,8 +154,49 @@ class RepoInspector:
 class RepoRunner:
     """Executes repos safely in subprocesses."""
 
-    def __init__(self, clone_manager: CloneManager | None = None) -> None:
+    def __init__(
+        self,
+        clone_manager: CloneManager | None = None,
+        network_policy: NetworkPolicy | None = None,
+        audit_logger: AuditLogger | None = None,
+    ) -> None:
         self.clone_manager = clone_manager or CloneManager()
+        self.network_policy = network_policy
+        self.audit_logger = audit_logger
+
+    def _check_network_policy(
+        self,
+        node: RepoNode,
+        network_policy: NetworkPolicy | None,
+    ) -> None:
+        """Verify declared external hosts against the egress policy.
+
+        Raises RuntimeError and logs an audit event when a host is blocked.
+        """
+        policy = network_policy or self.network_policy
+        if policy is None or policy.allow_all:
+            return
+
+        hosts = node.external_hosts or []
+        if not hosts:
+            return
+
+        blocked = [host for host in hosts if not policy.is_allowed(host)]
+        if blocked:
+            message = (
+                f"Network policy blocks outbound hosts for module {node.full_name}: "
+                f"{', '.join(blocked)}"
+            )
+            if self.audit_logger is not None:
+                self.audit_logger.log(
+                    "network_policy_violation",
+                    "RepoRunner",
+                    node.id,
+                    {"blocked_hosts": blocked, "allowlist": sorted(policy.allowlist)},
+                )
+            else:
+                logger.warning("network_policy_violation: %s", message)
+            raise RuntimeError(message)
 
     async def run(
         self,
@@ -159,8 +204,12 @@ class RepoRunner:
         command: str = "run",
         env: dict[str, str] | None = None,
         timeout: int = 60,
+        network_policy: NetworkPolicy | None = None,
     ) -> dict[str, Any]:
         """Clone (if needed), inspect, and run a repo."""
+        # Enforce egress policy before any clone/run work.
+        self._check_network_policy(node, network_policy)
+
         # Clone
         path = await self.clone_manager.clone(node)
 

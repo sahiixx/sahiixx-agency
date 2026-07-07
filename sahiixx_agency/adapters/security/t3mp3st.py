@@ -17,8 +17,10 @@ class T3mp3stAdapter(BaseAdapter):
         self,
         clone_base_dir: str = "./data/repos",
         approval_token: str | None = None,
+        network_policy: Any = None,
+        audit_logger: Any = None,
     ) -> None:
-        super().__init__(clone_base_dir=clone_base_dir)
+        super().__init__(clone_base_dir=clone_base_dir, network_policy=network_policy, audit_logger=audit_logger)
         self.approval_token = approval_token
 
     def _validate_payload(

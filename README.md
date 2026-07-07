@@ -38,6 +38,12 @@ opa task status <task-id>
 # Run intel scout
 opa intel --type trending
 
+# Start the general agency Telegram bot (tasks + approvals)
+opa telegram-bot --token <BOT_TOKEN>
+
+# Start the Career-Ops Telegram bot
+opa telegram-career-bot --token <BOT_TOKEN>
+
 # Start API server
 opa serve
 
@@ -72,7 +78,10 @@ sahiixx-agency/
 | `/tasks` | POST | Create and dispatch a task (returns pending) |
 | `/tasks` | GET | List recent tasks |
 | `/tasks/{id}` | GET | Get task status and result |
+| `/tasks/{id}/approve` | POST | Approve a high-risk task |
 | `/intel` | GET | Run intelligence scout |
+| `/telegram/status` | GET | Telegram bot config status |
+| `/telegram/webhook` | POST | Receive Telegram webhook updates |
 | `/dashboard/graph-data` | GET | Graph data for dashboard |
 
 ## MCP Tools
@@ -90,6 +99,8 @@ sahiixx-agency/
 | `GITHUB_TOKEN` | GitHub personal access token |
 | `GITHUB_USER` | GitHub username (default: sahiixx) |
 | `OPA_CONFIG` | Path to agency.yaml |
+| `TELEGRAM_BOT_TOKEN` | Telegram bot token (also accepted in agency.yaml) |
+| `TELEGRAM_ALLOWED_CHAT_IDS` | Comma-separated list of allowed Telegram chat IDs |
 
 ## License
 

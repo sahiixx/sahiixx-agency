@@ -2,7 +2,10 @@ version: "3.8"
 
 services:
   agency-api:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: opa-agency-api
     ports:
       - "8080:8080"
     environment:
@@ -11,27 +14,38 @@ services:
       - OPA_CONFIG=/app/config/agency.yaml
     volumes:
       - ./data:/app/data
-      - ./config:/app/config
-    command: uvicorn sahiixx_agency.api.main:app --host 0.0.0.0 --port 8080 --reload
+      - ./config:/app/config:ro
+    command: uvicorn sahiixx_agency.api.main:app --host 0.0.0.0 --port 8080
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
 
   agency-mcp:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: opa-agency-mcp
     ports:
       - "8081:8081"
     environment:
       - GITHUB_TOKEN=${GITHUB_TOKEN}
       - GITHUB_USER=${GITHUB_USER:-sahiixx}
+      - OPA_CONFIG=/app/config/agency.yaml
+      - MCP_TRANSPORT=sse
+      - MCP_HOST=0.0.0.0
+      - MCP_PORT=8081
     volumes:
       - ./data:/app/data
+      - ./config:/app/config:ro
     command: python -m sahiixx_agency.mcp_server.main
-
-  dashboard:
-    build:
-      context: ./dashboard
-      dockerfile: Dockerfile
-    ports:
-      - "3000:3000"
-    environment:
-      - VITE_API_URL=http://agency-api:8080
-    depends_on:
-      - agency-api
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped

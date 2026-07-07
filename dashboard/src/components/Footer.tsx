@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { useBrand } from '@/components/BrandProvider'
 
 function LogoMark({ className }: { className?: string }) {
   return (
@@ -24,6 +25,8 @@ function LogoMark({ className }: { className?: string }) {
 }
 
 export default function Footer() {
+  const { brandName } = useBrand()
+
   return (
     <footer className="w-full border-t border-white/[0.06] bg-bg-base py-12 px-6">
       <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -31,11 +34,11 @@ export default function Footer() {
           <div className="flex items-center gap-2 mb-3">
             <LogoMark className="text-accent-cyan" />
             <span className="font-display font-semibold text-[16px] text-text-primary">
-              AI Nexus
+              {brandName}
             </span>
           </div>
           <p className="text-body-sm text-text-muted">
-            Mapping the architecture of AI
+            Unified AI orchestration for all repos
           </p>
         </div>
 

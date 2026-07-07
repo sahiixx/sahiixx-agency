@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
+
+LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR"]
 
 
 class ModuleStatus(str, Enum):
@@ -95,6 +98,10 @@ class RepoNode(BaseModel):
     last_synced: datetime | None = Field(default=None)
     source: str = Field(default="registry")
     risk_level: RiskLevel = Field(default=RiskLevel.LOW)
+    external_hosts: list[str] = Field(
+        default_factory=list,
+        description="Hostnames/IPs the module declares it will call outbound",
+    )
 
 
 class AgencyTask(BaseModel):
@@ -113,6 +120,26 @@ class AgencyTask(BaseModel):
     completed_at: datetime | None = Field(default=None)
     parent_id: str | None = Field(default=None)
     child_ids: list[str] = Field(default_factory=list)
+    tenant_id: str | None = Field(default=None, description="Owning tenant for multi-tenancy")
+    project_id: str | None = Field(default=None, description="Owning project for multi-tenancy")
+
+
+class Tenant(BaseModel):
+    """An agency tenant (customer/organization)."""
+
+    id: str = Field(...)
+    name: str = Field(...)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class Project(BaseModel):
+    """A project/workspace inside a tenant."""
+
+    id: str = Field(...)
+    tenant_id: str = Field(...)
+    name: str = Field(...)
+    config: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class BusMessage(BaseModel):
@@ -162,6 +189,121 @@ class ApprovalConfig(BaseModel):
     require_approval_for: list[str] = Field(default_factory=lambda: ["high", "critical"])
 
 
+class TelegramConfig(BaseModel):
+    """Telegram bot integration settings."""
+
+    enabled: bool = Field(default=False)
+    token: str | None = Field(default=None, description="Telegram bot token")
+    webhook_url: str | None = Field(default=None, description="Optional webhook URL for setWebhook")
+    allowed_chat_ids: list[int] = Field(
+        default_factory=list,
+        description="If non-empty, only these chat IDs may interact with the bot",
+    )
+    poll_timeout: int = Field(default=30, description="Long-polling timeout in seconds")
+    notify_on_approval: bool = Field(default=True, description="Send a message when approval is requested")
+
+
+class LLMProvider(str, Enum):
+    """Supported LLM providers."""
+
+    OPENAI = "openai"
+    ANTHROPIC = "anthropic"
+    OLLAMA = "ollama"
+    OPENROUTER = "openrouter"
+    GENERIC = "generic"
+
+
+class LLMMessage(BaseModel):
+    """A single message for an LLM chat completion request."""
+
+    role: Literal["system", "user", "assistant"] = Field(...)
+    content: str = Field(...)
+
+
+class LLMUsage(BaseModel):
+    """Token usage returned by an LLM provider."""
+
+    input_tokens: int = Field(default=0, ge=0)
+    output_tokens: int = Field(default=0, ge=0)
+    total_tokens: int = Field(default=0, ge=0)
+
+
+class LLMResponse(BaseModel):
+    """Normalised response from any LLM provider."""
+
+    provider: str
+    model: str
+    content: str
+    usage: LLMUsage
+    cost_usd: float | None = Field(default=None)
+    latency_ms: float = Field(default=0.0)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class LLMModelPricing(BaseModel):
+    """Per-model pricing in USD per 1M tokens."""
+
+    input_per_1m_tokens: float = Field(..., ge=0)
+    output_per_1m_tokens: float = Field(..., ge=0)
+
+
+class LLMProviderConfig(BaseModel):
+    """Provider-specific configuration and credentials."""
+
+    api_key: str | None = Field(default=None)
+    base_url: str | None = Field(default=None)
+    default_model: str | None = Field(default=None)
+
+
+class LLMConfig(BaseModel):
+    """LLM abstraction configuration."""
+
+    enabled: bool = Field(default=True)
+    default_provider: LLMProvider = Field(default=LLMProvider.OPENAI)
+    default_model: str | None = Field(default=None)
+    providers: dict[str, LLMProviderConfig] = Field(default_factory=dict)
+    pricing: dict[str, LLMModelPricing] = Field(default_factory=dict)
+
+
+class SecurityConfig(BaseModel):
+    """Security hardening settings."""
+
+    network_allowlist: list[str] = Field(
+        default_factory=list,
+        description="Allowed outbound host suffixes for sandboxed execution",
+    )
+    network_blocklist: list[str] = Field(
+        default_factory=list,
+        description="Blocked outbound host suffixes",
+    )
+    audit_enabled: bool = Field(default=True)
+    sanitize_input: bool = Field(default=True)
+    dependency_scan_enabled: bool = Field(
+        default=False,
+        description="Enable dependency vulnerability scanning before repo execution",
+    )
+
+
+class DependencyScanReport(BaseModel):
+    """Result of a dependency vulnerability scan."""
+
+    passed: bool = Field(..., description="True when no known vulnerabilities were detected")
+    failures: list[str] = Field(default_factory=list, description="Detected vulnerability messages")
+    command: str | None = Field(default=None, description="CLI command that was attempted")
+    stderr: str | None = Field(default=None, description="CLI stderr or fallback reason")
+
+
+class WhiteLabelConfig(BaseModel):
+    """Per-project white-label dashboard branding."""
+
+    brand_name: str = Field(default="One Person Agency", alias="brandName")
+    logo_url: str = Field(default="", alias="logoUrl")
+    primary_color: str = Field(default="#6366f1", alias="primaryColor")
+    favicon_url: str = Field(default="", alias="faviconUrl")
+
+    model_config = {"populate_by_name": True}
+
+
 class AgencyConfig(BaseModel):
     """Runtime configuration for the agency."""
 
@@ -195,6 +337,21 @@ class AgencyConfig(BaseModel):
     discovery: DiscoveryConfig = Field(default_factory=DiscoveryConfig)
     # Approval gate settings loaded from agency.yaml
     approval: ApprovalConfig = Field(default_factory=ApprovalConfig)
+    # Notification channel settings loaded from agency.yaml
+    notifications: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Notification channel configs: telegram, email, webhook",
+    )
+    # Workflow storage directory
+    workflows_dir: str = Field(default="./data/workflows")
+    # Metrics retention window in hours
+    metrics_retention_hours: int = Field(default=24)
+    # Telegram bot settings loaded from agency.yaml
+    telegram: TelegramConfig = Field(default_factory=TelegramConfig)
+    # LLM provider settings loaded from agency.yaml
+    llm: LLMConfig | None = Field(default=None)
+    # Security hardening settings
+    security: SecurityConfig = Field(default_factory=SecurityConfig)
 
 
 class DiscoveryResult(BaseModel):
@@ -225,4 +382,213 @@ class ApprovalRequest(BaseModel):
     approved_at: datetime | None = None
     approved_by: str | None = None
     status: str = "pending"  # pending, approved, rejected
+
+
+class TaskLogEntry(BaseModel):
+    """A single structured log entry for a task lifecycle event."""
+
+    timestamp: datetime = Field(..., description="UTC ISO-8601 timestamp")
+    level: LogLevel = Field(..., description="Standard Python logging level name")
+    task_id: str = Field(..., description="Task this entry belongs to")
+    actor: str = Field(default="system", description="Component that emitted the log")
+    message: str = Field(..., description="Human-readable log message")
+    extra: dict[str, Any] = Field(default_factory=dict, description="Structured context")
+
+
+class CostRecord(BaseModel):
+    """A single cost event attributed to a tenant/project/task."""
+
+    id: str = Field(default_factory=lambda: f"cost_{uuid.uuid4().hex[:12]}")
+    tenant_id: str | None = Field(default=None, description="Owning tenant")
+    project_id: str | None = Field(default=None, description="Owning project")
+    task_id: str | None = Field(default=None, description="Related agency task")
+    category: str = Field(..., description="Cost category, e.g. llm or execution")
+    amount: float = Field(..., ge=0, description="Cost amount in the specified currency")
+    currency: str = Field(default="USD", description="Currency code")
+    description: str = Field(default="", description="Human-readable description")
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class WorkflowStatus(str, Enum):
+    """Status of a workflow instance."""
+
+    PENDING = "pending"
+    RUNNING = "running"
+    PAUSED = "paused"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class WorkflowStepStatus(str, Enum):
+    """Status of an individual workflow step."""
+
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    SKIPPED = "skipped"
+
+
+class WorkflowStep(BaseModel):
+    """A single step inside a workflow definition."""
+
+    id: str = Field(..., description="Unique step id within the workflow")
+    name: str = Field(..., description="Human readable step name")
+    action: Literal["dispatch", "wait", "approve", "notify", "webhook", "condition", "noop"] = Field(
+        default="noop",
+        description="Step action type",
+    )
+    target: str | None = Field(default=None, description="Module id or category for dispatch steps")
+    intent_template: str | None = Field(default=None, description="Intent template for dispatch steps")
+    payload: dict[str, Any] = Field(default_factory=dict, description="Static payload merged at runtime")
+    requires_approval: bool = Field(default=False, description="Pause for human approval before this step")
+    next_on_success: str | None = Field(default=None, description="Next step id on success")
+    next_on_failure: str | None = Field(default=None, description="Next step id on failure")
+    condition: str | None = Field(default=None, description="Simple expression for condition steps")
+
+
+class WorkflowDefinition(BaseModel):
+    """A reusable workflow template."""
+
+    id: str = Field(..., description="Unique workflow id")
+    name: str = Field(..., description="Human readable name")
+    description: str = Field(default="")
+    trigger: Literal["manual", "schedule", "webhook", "event"] = Field(default="manual")
+    schedule: str | None = Field(default=None, description="Cron expression for scheduled workflows")
+    event_topic: str | None = Field(default=None, description="Bus topic that triggers this workflow")
+    steps: list[WorkflowStep] = Field(default_factory=list)
+    enabled: bool = Field(default=True)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class WorkflowStepState(BaseModel):
+    """Runtime state of a workflow step."""
+
+    step_id: str
+    status: WorkflowStepStatus = WorkflowStepStatus.PENDING
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    result: dict[str, Any] | None = None
+    error: str | None = None
+    task_id: str | None = None
+
+
+class WorkflowInstance(BaseModel):
+    """A running or completed workflow execution."""
+
+    id: str = Field(..., description="Unique instance id")
+    workflow_id: str
+    status: WorkflowStatus = WorkflowStatus.PENDING
+    context: dict[str, Any] = Field(default_factory=dict, description="Runtime variables")
+    step_states: list[WorkflowStepState] = Field(default_factory=list)
+    current_step_id: str | None = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    error: str | None = None
+
+
+class NotificationChannel(str, Enum):
+    """Supported notification channels."""
+
+    TELEGRAM = "telegram"
+    EMAIL = "email"
+    WEBHOOK = "webhook"
+    SSE = "sse"
+    CONSOLE = "console"
+
+
+class Notification(BaseModel):
+    """A single notification message."""
+
+    id: str = Field(..., description="Unique notification id")
+    channel: NotificationChannel
+    title: str
+    body: str
+    recipient: str | None = None
+    payload: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    sent_at: datetime | None = None
+    status: str = "pending"  # pending, sent, failed
+    error: str | None = None
+
+
+class MetricPoint(BaseModel):
+    """A single metric observation."""
+
+    name: str
+    value: float
+    labels: dict[str, str] = Field(default_factory=dict)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class HealthStatus(str, Enum):
+    """Health check status."""
+
+    HEALTHY = "healthy"
+    DEGRADED = "degraded"
+    UNHEALTHY = "unhealthy"
+    UNKNOWN = "unknown"
+
+
+class HealthCheck(BaseModel):
+    """A single health check result."""
+
+    name: str
+    status: HealthStatus
+    latency_ms: float = 0.0
+    message: str = ""
+    checked_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class WebhookPayload(BaseModel):
+    """Incoming webhook payload."""
+
+    source: str
+    event: str
+    payload: dict[str, Any] = Field(default_factory=dict)
+    received_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class LLMCallRecord(BaseModel):
+    """A single recorded LLM call for cost tracking."""
+
+    id: str = Field(...)
+    provider: str
+    model: str
+    input_tokens: int = 0
+    output_tokens: int = 0
+    total_tokens: int = 0
+    cost_usd: float | None = None
+    latency_ms: float = 0.0
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class MessageRole(str, Enum):
+    """Role of a chat message."""
+
+    USER = "user"
+    AGENCY = "agency"
+
+
+class ChatMessage(BaseModel):
+    """A single message within a chat thread."""
+
+    id: str = Field(..., description="Unique message id")
+    role: MessageRole = Field(..., description="Who sent the message")
+    content: str = Field(..., description="Message text")
+    task_id: str | None = Field(default=None, description="Related agency task, if any")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class ChatThread(BaseModel):
+    """A persisted conversation with the agency."""
+
+    id: str = Field(..., description="Unique thread id")
+    title: str | None = Field(default=None, description="Optional thread title")
+    messages: list[ChatMessage] = Field(default_factory=list)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 

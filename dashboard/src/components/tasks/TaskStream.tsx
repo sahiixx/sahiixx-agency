@@ -5,8 +5,9 @@ import { cn } from '@/lib/utils'
 interface Task {
   id: string
   intent: string
-  status: 'pending' | 'running' | 'completed' | 'failed'
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
   module?: string
+  module_id?: string
   created_at: string
 }
 
@@ -24,7 +25,12 @@ export function TaskStream({ onSelectTask }: TaskStreamProps) {
       const res = await fetch('/api/tasks')
       if (!res.ok) throw new Error(`Tasks fetch failed: ${res.status}`)
       const data = await res.json()
-      setTasks(Array.isArray(data) ? data : [])
+      setTasks(
+        (Array.isArray(data) ? data : []).map((t: Task) => ({
+          ...t,
+          module: t.module || t.module_id,
+        }))
+      )
       setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch tasks')
@@ -74,7 +80,7 @@ function TaskCard({ task, onClick }: { task: Task; onClick?: () => void }) {
   const statusColor =
     task.status === 'completed'
       ? 'bg-accent-green/10 text-accent-green border-accent-green/20'
-      : task.status === 'failed'
+      : task.status === 'failed' || task.status === 'cancelled'
       ? 'bg-accent-red/10 text-accent-red border-accent-red/20'
       : task.status === 'running'
       ? 'bg-accent-cyan/10 text-accent-cyan border-accent-cyan/20'

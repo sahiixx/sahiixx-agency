@@ -36,8 +36,15 @@ class T3mp3stMcpAdapter(T3mp3stAdapter):
         clone_base_dir: str = "./data/repos",
         approval_token: str | None = None,
         tool_name: str | None = None,
+        network_policy: Any = None,
+        audit_logger: Any = None,
     ) -> None:
-        super().__init__(clone_base_dir=clone_base_dir, approval_token=approval_token)
+        super().__init__(
+            clone_base_dir=clone_base_dir,
+            approval_token=approval_token,
+            network_policy=network_policy,
+            audit_logger=audit_logger,
+        )
         self.tool_name = tool_name
 
     def _find_mcp_server_script(self, repo_path: Path) -> list[str] | None:

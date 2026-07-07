@@ -18,6 +18,7 @@ import { ChatInput } from '@/components/chat/ChatInput'
 import { TaskStream } from '@/components/tasks/TaskStream'
 import { ApprovalQueue } from '@/components/approvals/ApprovalQueue'
 import { TrendingPanel } from '@/components/discovery/TrendingPanel'
+import { TelegramStatus } from '@/components/telegram/TelegramStatus'
 
 type SidebarItem = 'chat' | 'tasks' | 'discovery' | 'approvals' | 'memory' | 'graph'
 
@@ -31,8 +32,9 @@ interface ChatMessage {
 interface Task {
   id: string
   intent: string
-  status: 'pending' | 'running' | 'completed' | 'failed'
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
   module?: string
+  module_id?: string
   created_at: string
 }
 
@@ -74,13 +76,6 @@ export default function Agency() {
       if (!text.trim()) return
       setChatLoading(true)
       setChatError(null)
-      const userMsg: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: 'user',
-        content: text.trim(),
-        created_at: new Date().toISOString(),
-      }
-      setMessages((prev) => [...prev, userMsg])
       try {
         const res = await fetch('/api/chat', {
           method: 'POST',
@@ -90,13 +85,9 @@ export default function Agency() {
         if (!res.ok) throw new Error(`Chat error: ${res.status}`)
         const data = await res.json()
         if (data.thread_id) setThreadId(data.thread_id)
-        const agencyMsg: ChatMessage = {
-          id: crypto.randomUUID(),
-          role: 'agency',
-          content: data.response || 'Agency acknowledged.',
-          created_at: new Date().toISOString(),
+        if (Array.isArray(data.messages)) {
+          setMessages(data.messages)
         }
-        setMessages((prev) => [...prev, agencyMsg])
       } catch (err) {
         setChatError(err instanceof Error ? err.message : 'Failed to send')
       } finally {
@@ -304,6 +295,7 @@ function ContextPanel() {
         <h3 className="font-medium text-[var(--text-primary)] mb-2">Active Thread</h3>
         <p>No thread selected. Start a conversation in the chat.</p>
       </div>
+      <TelegramStatus />
       <div className="rounded-lg border border-white/6 bg-[var(--bg-elevated)] p-4">
         <h3 className="font-medium text-[var(--text-primary)] mb-2">Quick Stats</h3>
         <div className="grid grid-cols-2 gap-3">
@@ -398,7 +390,7 @@ function TaskDetails({ task, onClose }: { task: Task; onClose: () => void }) {
   const statusColor =
     details?.status === 'completed'
       ? 'text-accent-green'
-      : details?.status === 'failed'
+      : details?.status === 'failed' || details?.status === 'cancelled'
       ? 'text-accent-red'
       : details?.status === 'running'
       ? 'text-accent-cyan'
@@ -426,10 +418,10 @@ function TaskDetails({ task, onClose }: { task: Task; onClose: () => void }) {
               {details.status}
             </div>
           </div>
-          {details.module && (
+          {(details.module || details.module_id) && (
             <div>
               <div className="text-xs text-[var(--text-muted)] mb-1">Module</div>
-              <div className="text-sm text-[var(--text-primary)]">{details.module}</div>
+              <div className="text-sm text-[var(--text-primary)]">{details.module || details.module_id}</div>
             </div>
           )}
           <div>

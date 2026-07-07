@@ -52,7 +52,7 @@ module.exports = {
         "bg-base": "#050508",
         "bg-surface": "#0a0a12",
         "bg-elevated": "#11111a",
-        "accent-cyan": "#00d4ff",
+        "accent-cyan": "var(--accent-cyan)",
         "accent-purple": "#8b5cf6",
         "accent-magenta": "#e879f9",
         "accent-green": "#22c55e",

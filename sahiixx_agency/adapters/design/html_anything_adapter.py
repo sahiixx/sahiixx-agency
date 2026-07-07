@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from sahiixx_agency.core.models import RepoNode
+from sahiixx_agency.core.security import AuditLogger, NetworkPolicy
 
 DEFAULT_HTML_ANYTHING_DIR = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "repos", "html-anything")
@@ -53,6 +54,8 @@ class HtmlAnythingAdapter:
         timeout: int = 300,
         fallback_on_failure: bool = True,
         env: dict[str, str] | None = None,
+        network_policy: NetworkPolicy | None = None,
+        audit_logger: AuditLogger | None = None,
     ) -> None:
         if repo_dir is None:
             repo_dir = (
@@ -64,6 +67,33 @@ class HtmlAnythingAdapter:
         self.timeout = timeout
         self.fallback_on_failure = fallback_on_failure
         self.env = env or {}
+        self.network_policy = network_policy
+        self.audit_logger = audit_logger
+
+    def _check_network_policy(self, node: RepoNode) -> None:
+        """Verify declared external hosts against the egress policy."""
+        policy = self.network_policy
+        if policy is None or policy.allow_all:
+            return
+
+        hosts = node.external_hosts or []
+        if not hosts:
+            return
+
+        blocked = [host for host in hosts if not policy.is_allowed(host)]
+        if blocked:
+            message = (
+                f"Network policy blocks outbound hosts for module {node.full_name}: "
+                f"{', '.join(blocked)}"
+            )
+            if self.audit_logger is not None:
+                self.audit_logger.log(
+                    "network_policy_violation",
+                    "HtmlAnythingAdapter",
+                    node.id,
+                    {"blocked_hosts": blocked, "allowlist": sorted(policy.allowlist)},
+                )
+            raise RuntimeError(message)
 
     SURFACES: tuple[str, ...] = (
         "deck",
@@ -337,6 +367,9 @@ class HtmlAnythingAdapter:
     async def run(self, node: RepoNode, payload: dict[str, Any]) -> dict[str, Any]:
         """Conform to the agency adapter interface: run from RepoNode + payload."""
         import asyncio
+
+        # Enforce egress policy before any outbound/repo work.
+        self._check_network_policy(node)
 
         brief = payload.get("brief") or payload.get("intent") or ""
         surface = payload.get("surface")

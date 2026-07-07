@@ -88,6 +88,46 @@ class AgencyMemory:
             events.append({"topic": topic, "payload": payload, "created_at": datetime.now(timezone.utc).isoformat()})
             self._save_json()
 
+    def save_task(self, task_id: str, task_data: dict[str, Any]) -> None:
+        """Persist task state so it survives process restarts."""
+        if self.backend == "sqlite":
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS tasks (
+                        task_id TEXT PRIMARY KEY,
+                        value TEXT,
+                        updated_at TEXT
+                    )
+                    """
+                )
+                conn.execute(
+                    "INSERT OR REPLACE INTO tasks (task_id, value, updated_at) VALUES (?, ?, ?)",
+                    (task_id, json.dumps(task_data), datetime.now(timezone.utc).isoformat()),
+                )
+                conn.commit()
+        else:
+            tasks = self._data.setdefault("tasks", {})
+            tasks[task_id] = task_data
+            self._save_json()
+
+    def load_tasks(self) -> list[dict[str, Any]]:
+        """Load all persisted task states."""
+        if self.backend == "sqlite":
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS tasks (
+                        task_id TEXT PRIMARY KEY,
+                        value TEXT,
+                        updated_at TEXT
+                    )
+                    """
+                )
+                rows = conn.execute("SELECT value FROM tasks").fetchall()
+                return [json.loads(r[0]) for r in rows]
+        return list(self._data.get("tasks", {}).values())
+
     def recent_events(self, topic: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
         if self.backend == "sqlite":
             with sqlite3.connect(self.db_path) as conn:

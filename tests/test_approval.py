@@ -80,7 +80,7 @@ async def test_engine_blocks_high_risk_task_until_approved(tmp_path) -> None:
     assert not engine.approval_manager.is_approved("task_high_risk")
     assert len(engine.approval_manager.list_pending()) == 1
 
-    engine.approve_task("task_high_risk", by="user")
+    await engine.approve_task("task_high_risk", by="user")
     # Task is now approved; a subsequent execution attempt would run.
     assert engine.approval_manager.is_approved("task_high_risk")
 

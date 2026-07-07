@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Search, X, Filter } from 'lucide-react'
 import { motion } from 'framer-motion'
 import type { RepoNode } from '@/lib/graph-data'
+import { useBrand } from '@/components/BrandProvider'
 
 interface HeroBarProps {
   repos: RepoNode[]
@@ -22,6 +23,7 @@ export default function HeroBar({
   const [open, setOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const { brandName } = useBrand()
 
   const results = query.trim()
     ? repos
@@ -81,10 +83,10 @@ export default function HeroBar({
         </div>
         <div>
           <h1 className="font-display font-semibold text-[24px] leading-[1.2] text-text-primary">
-            AI Nexus
+            {brandName}
           </h1>
           <p className="text-body-sm text-text-muted">
-            Architecture of Artificial Intelligence
+            Unified AI orchestration for all repos
           </p>
         </div>
       </motion.div>

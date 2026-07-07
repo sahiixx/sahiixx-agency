@@ -411,6 +411,34 @@ def test_classify_repo_career():
     assert category == RepoCategory.CAREER
 
 
+@pytest.mark.asyncio
+async def test_worker_start_does_not_duplicate_bus_subscriptions(engine):
+    """Starting the worker multiple times must not re-register the bus listener."""
+    await engine.start_worker()
+    try:
+        initial_subscriber_count = len(engine.bus._handlers.get("*", []))
+        assert initial_subscriber_count == 1
+        # Stop and restart the worker.
+        await engine.stop_worker()
+        await engine.start_worker()
+        assert len(engine.bus._handlers.get("*", [])) == initial_subscriber_count
+    finally:
+        await engine.stop_worker()
+
+
+@pytest.mark.asyncio
+async def test_worker_start_registers_single_health_check(engine):
+    """Health checks must not be duplicated across worker restarts."""
+    await engine.start_worker()
+    try:
+        initial_check_count = len(engine.metrics._health_checks)
+        await engine.stop_worker()
+        await engine.start_worker()
+        assert len(engine.metrics._health_checks) == initial_check_count
+    finally:
+        await engine.stop_worker()
+
+
 def test_classify_repo_agent_framework_relaymux_letta():
     category = _classify_repo(
         "relaymux",

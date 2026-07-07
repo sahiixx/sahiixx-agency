@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from sahiixx_agency.core.models import RepoNode
+from sahiixx_agency.core.security import AuditLogger, NetworkPolicy
 from sahiixx_agency.discovery.entrypoint import infer_entrypoint
 
 
@@ -20,10 +21,14 @@ class GenericAdapter:
         data_dir: str = "./data",
         timeout: int = 120,
         fallback_on_failure: bool = True,
+        network_policy: NetworkPolicy | None = None,
+        audit_logger: AuditLogger | None = None,
     ) -> None:
         self.data_dir = Path(data_dir)
         self.timeout = timeout
         self.fallback_on_failure = fallback_on_failure
+        self.network_policy = network_policy
+        self.audit_logger = audit_logger
 
     def _repo_dir(self, node: RepoNode) -> Path | None:
         candidates = [
@@ -39,6 +44,34 @@ class GenericAdapter:
                 return candidate
         return None
 
+    def _check_network_policy(self, node: RepoNode) -> None:
+        """Verify declared external hosts against the egress policy.
+
+        Raises RuntimeError and logs an audit event when a host is blocked.
+        """
+        policy = self.network_policy
+        if policy is None or policy.allow_all:
+            return
+
+        hosts = node.external_hosts or []
+        if not hosts:
+            return
+
+        blocked = [host for host in hosts if not policy.is_allowed(host)]
+        if blocked:
+            message = (
+                f"Network policy blocks outbound hosts for module {node.full_name}: "
+                f"{', '.join(blocked)}"
+            )
+            if self.audit_logger is not None:
+                self.audit_logger.log(
+                    "network_policy_violation",
+                    "GenericAdapter",
+                    node.id,
+                    {"blocked_hosts": blocked, "allowlist": sorted(policy.allowlist)},
+                )
+            raise RuntimeError(message)
+
     def _build_command(
         self, node: RepoNode, payload: dict[str, Any]
     ) -> list[list[str]] | list[str] | None:
@@ -53,6 +86,9 @@ class GenericAdapter:
         return None
 
     async def run(self, node: RepoNode, payload: dict[str, Any]) -> dict[str, Any]:
+        # Enforce egress policy before any outbound/repo work.
+        self._check_network_policy(node)
+
         repo_dir = self._repo_dir(node)
         if repo_dir is None:
             return self._simulate(node, payload, reason="repo not cloned")

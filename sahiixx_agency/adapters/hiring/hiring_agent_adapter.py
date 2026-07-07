@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from sahiixx_agency.core.models import RepoNode
+from sahiixx_agency.core.security import AuditLogger, NetworkPolicy
 
 DEFAULT_HIRING_AGENT_DIR = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "repos", "hiring-agent")
@@ -51,6 +52,8 @@ class HiringAgentAdapter:
         timeout: int = 600,
         fallback_on_failure: bool = True,
         env: dict[str, str] | None = None,
+        network_policy: NetworkPolicy | None = None,
+        audit_logger: AuditLogger | None = None,
     ) -> None:
         if repo_dir is None:
             repo_dir = (
@@ -63,6 +66,33 @@ class HiringAgentAdapter:
         self.timeout = timeout
         self.fallback_on_failure = fallback_on_failure
         self.env = env or {}
+        self.network_policy = network_policy
+        self.audit_logger = audit_logger
+
+    def _check_network_policy(self, node: RepoNode) -> None:
+        """Verify declared external hosts against the egress policy."""
+        policy = self.network_policy
+        if policy is None or policy.allow_all:
+            return
+
+        hosts = node.external_hosts or []
+        if not hosts:
+            return
+
+        blocked = [host for host in hosts if not policy.is_allowed(host)]
+        if blocked:
+            message = (
+                f"Network policy blocks outbound hosts for module {node.full_name}: "
+                f"{', '.join(blocked)}"
+            )
+            if self.audit_logger is not None:
+                self.audit_logger.log(
+                    "network_policy_violation",
+                    "HiringAgentAdapter",
+                    node.id,
+                    {"blocked_hosts": blocked, "allowlist": sorted(policy.allowlist)},
+                )
+            raise RuntimeError(message)
 
     @property
     def score_script(self) -> Path:
@@ -184,6 +214,9 @@ class HiringAgentAdapter:
 
     async def run(self, node: RepoNode, payload: dict[str, Any]) -> dict[str, Any]:
         """Conform to the agency adapter interface: run from RepoNode + payload."""
+        # Enforce egress policy before any outbound/repo work.
+        self._check_network_policy(node)
+
         pdf_path = payload.get("pdf_path") or payload.get("path") or payload.get("resume")
         if not pdf_path:
             return {

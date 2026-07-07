@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import json
+import os
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 from sahiixx_agency.core.engine import AgencyEngine
 from sahiixx_agency.core.models import AgencyConfig, RepoCategory
@@ -19,6 +22,11 @@ def _get_engine() -> AgencyEngine:
     if _engine is None:
         _engine = AgencyEngine(AgencyConfig())
     return _engine
+
+
+@mcp.custom_route("/health", methods=["GET"])
+async def _health_check(_request: Request) -> JSONResponse:
+    return JSONResponse({"status": "ok"})
 
 
 @mcp.tool()
@@ -101,8 +109,70 @@ async def sync_registry(username: str = "sahiixx") -> str:
     return json.dumps({"synced": len(discovered), "username": username}, indent=2)
 
 
+@mcp.tool()
+async def list_workflows() -> str:
+    """List agency workflow definitions."""
+    engine = _get_engine()
+    workflows = engine.workflows.list_definitions()
+    return json.dumps([w.model_dump(mode="json") for w in workflows], indent=2)
+
+
+@mcp.tool()
+async def run_workflow(workflow_id: str, context: str = "{}") -> str:
+    """Run a workflow instance by id."""
+    engine = _get_engine()
+    await engine.start_worker()
+    data: dict[str, Any] = json.loads(context)
+    instance = engine.workflows.create_instance(workflow_id, data)
+    if instance is None:
+        return json.dumps({"error": "Workflow not found or disabled"})
+    result = await engine.workflows.run_instance(instance.id, dispatch=engine.dispatch, notify=engine.notify)
+    if result is None:
+        return json.dumps({"error": "Workflow instance disappeared"})
+    return json.dumps(result.model_dump(mode="json"), indent=2)
+
+
+@mcp.tool()
+async def send_notification(channel: str, title: str, body: str, recipient: str | None = None) -> str:
+    """Send an agency notification through a channel (sse, telegram, email, webhook)."""
+    engine = _get_engine()
+    from sahiixx_agency.core.models import NotificationChannel
+
+    try:
+        ch = NotificationChannel(channel)
+    except ValueError:
+        return f"Unknown channel: {channel}"
+    notification = await engine.notify(ch, title, body, recipient)
+    return json.dumps(notification.model_dump(mode="json"), indent=2)
+
+
+@mcp.tool()
+async def get_metrics() -> str:
+    """Get Prometheus-compatible agency metrics."""
+    engine = _get_engine()
+    return engine.metrics.to_prometheus()
+
+
+@mcp.tool()
+async def get_health() -> str:
+    """Get agency health check results."""
+    engine = _get_engine()
+    checks = engine.metrics.health()
+    return json.dumps(
+        {
+            "status": engine.metrics.overall_health().value,
+            "checks": [c.model_dump(mode="json") for c in checks],
+        },
+        indent=2,
+    )
+
+
 def main() -> None:
-    mcp.run()
+    transport = os.environ.get("MCP_TRANSPORT", "stdio")
+    if transport == "sse":
+        mcp.settings.host = os.environ.get("MCP_HOST", "0.0.0.0")
+        mcp.settings.port = int(os.environ.get("MCP_PORT", "8081"))
+    mcp.run(transport=transport)
 
 
 if __name__ == "__main__":

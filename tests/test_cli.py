@@ -63,13 +63,61 @@ def test_dispatch_command_returns_task_id(patched_engine):
     assert "pending" in result.stdout
 
 
+def test_do_command_natural_language_dispatch(patched_engine):
+    result = runner.invoke(app, ["do", "run", "voice", "assistant", "--no-wait"])
+    assert result.exit_code == 0
+    assert "task_" in result.stdout
+    assert "pending" in result.stdout
+
+
+def test_do_command_invalid_json_payload(patched_engine):
+    result = runner.invoke(app, ["do", "run", "voice", "assistant", "--payload", "not-json"])
+    assert result.exit_code == 1
+    assert "invalid json" in result.stdout.lower()
+
+
 def test_task_status_unknown_id(patched_engine):
     result = runner.invoke(app, ["task", "status", "task_does_not_exist"])
     assert result.exit_code == 1
     assert "not found" in result.stdout.lower()
 
 
+def test_task_list_shows_dispatched_tasks(patched_engine):
+    runner.invoke(app, ["do", "run", "voice", "assistant", "--no-wait"])
+    result = runner.invoke(app, ["task", "list"])
+    assert result.exit_code == 0
+    assert "Recent Tasks" in result.stdout
+    # The async worker may have already completed the task by the time we list it.
+    assert any(status in result.stdout for status in ("pending", "running", "completed"))
+
+
+def test_task_list_filters_by_status(patched_engine):
+    runner.invoke(app, ["do", "run", "voice", "assistant", "--no-wait"])
+    # The worker may transition the task through pending/running to completed before the list call.
+    for status in ("pending", "running", "completed"):
+        result = runner.invoke(app, ["task", "list", "--status", status])
+        if "Recent Tasks" in result.stdout:
+            assert status in result.stdout
+            return
+    pytest.fail("Task did not appear with pending, running, or completed status")
+
+
+def test_task_list_no_match_shows_empty(patched_engine):
+    runner.invoke(app, ["do", "run", "voice", "assistant", "--no-wait"])
+    # Use a status the dispatched task will never have so the filter always returns empty.
+    result = runner.invoke(app, ["task", "list", "--status", "rejected"])
+    assert result.exit_code == 0
+    assert "No tasks found" in result.stdout
+
+
 def test_exec_invalid_json_payload(patched_engine):
     result = runner.invoke(app, ["exec", "friday", "--payload", "not-json"])
     assert result.exit_code == 1
     assert "invalid json" in result.stdout.lower()
+
+
+def test_telegram_bot_requires_token(monkeypatch):
+    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+    result = runner.invoke(app, ["telegram-bot"])
+    assert result.exit_code == 1
+    assert "Telegram bot token is required" in result.stdout

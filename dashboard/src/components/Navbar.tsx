@@ -4,6 +4,7 @@ import { useTheme } from 'next-themes'
 import { Sun, Moon, Menu, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { useBrand } from '@/components/BrandProvider'
 
 function LogoMark({ className }: { className?: string }) {
   return (
@@ -32,6 +33,9 @@ function LogoMark({ className }: { className?: string }) {
 
 const links = [
   { label: 'Graph', path: '/' },
+  { label: 'LLM', path: '/llm' },
+  { label: 'Workflows', path: '/workflows' },
+  { label: 'Metrics', path: '/metrics' },
   { label: 'Todos', path: '/todos' },
   { label: 'About', path: '/about' },
   { label: 'Contact', path: '/contact' },
@@ -42,6 +46,7 @@ const links = [
 export default function Navbar() {
   const location = useLocation()
   const { theme, setTheme } = useTheme()
+  const { brandName } = useBrand()
   const [scrolled, setScrolled] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -81,7 +86,7 @@ export default function Navbar() {
         <div className="flex items-center gap-3">
           <LogoMark className="text-accent-cyan" />
           <span className="font-display font-semibold text-[18px] text-text-primary">
-            AI Nexus
+            {brandName}
           </span>
         </div>
 

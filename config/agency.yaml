@@ -26,9 +26,76 @@ approval:
   auto_approve_low_risk: true
   require_approval_for: ["high", "critical"]
 
-# Optional LLM integration for enhanced routing
+# ─── Workflows ─────────────────────────────────────────────────
+workflows_dir: "./data/workflows"
+metrics_retention_hours: 24
+
+# ─── Notifications ─────────────────────────────────────────────
+notifications:
+  telegram:
+    enabled: false
+    token: null  # Set via TELEGRAM_BOT_TOKEN env var
+    chat_id: null
+  email:
+    enabled: false
+    smtp_host: null
+    smtp_port: 587
+    smtp_user: null  # Set via SMTP_USER env var
+    smtp_password: null  # Set via SMTP_PASSWORD env var
+    default_recipient: null
+  webhook:
+    enabled: false
+    url: null
+
+# ─── Security Hardening ────────────────────────────────────────
+security:
+  audit_enabled: true
+  sanitize_input: true
+  dependency_scan_enabled: false
+  network_allowlist: []  # e.g. ["github.com", "api.openai.com"]
+  network_blocklist: []  # e.g. ["evil.com"]
+
+# ─── Telegram Bot Settings ────────────────────────────────────
+telegram:
+  enabled: false
+  token: null  # Set via TELEGRAM_BOT_TOKEN env var
+  webhook_url: null  # Optional: https://api.example.com/telegram/webhook
+  allowed_chat_ids: []  # Restrict to specific Telegram chat IDs; empty = allow all
+  poll_timeout: 30
+  notify_on_approval: true
+
+# Optional LLM integration for enhanced routing and chat
 default_llm: null  # e.g. "openai/gpt-4o"
 llm_api_key: null
+
+# ─── LLM Provider Settings ────────────────────────────────────
+llm:
+  enabled: true
+  default_provider: "openai"
+  default_model: "gpt-4o-mini"
+  providers:
+    openai:
+      api_key: null      # Set via OPENAI_API_KEY env var
+      base_url: "https://api.openai.com/v1"
+      default_model: "gpt-4o-mini"
+    anthropic:
+      api_key: null      # Set via ANTHROPIC_API_KEY env var
+      base_url: "https://api.anthropic.com/v1"
+      default_model: "claude-3-5-sonnet-20241022"
+    openrouter:
+      api_key: null      # Set via OPENROUTER_API_KEY env var
+      base_url: "https://openrouter.ai/api/v1"
+      default_model: "openai/gpt-4o-mini"
+    ollama:
+      base_url: "http://localhost:11434"
+      default_model: "llama3.1"
+  pricing:
+    gpt-4o:
+      input_per_1m_tokens: 2.50
+      output_per_1m_tokens: 10.00
+    gpt-4o-mini:
+      input_per_1m_tokens: 0.15
+      output_per_1m_tokens: 0.60
 
 # ─── Ecosystem Module Registry ────────────────────────────────
 # Core infrastructure — always loaded

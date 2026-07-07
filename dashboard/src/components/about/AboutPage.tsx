@@ -65,11 +65,11 @@ export function AboutPage() {
             </div>
           </motion.div>
           <h1 className="font-display text-4xl md:text-5xl font-bold text-text-primary mb-4">
-            AI Nexus
+            One Person Agency
           </h1>
           <p className="text-lg text-text-secondary max-w-2xl mx-auto">
-            A next-generation dashboard for visualizing and exploring the AI technology landscape.
-            Track models, frameworks, and emerging patterns across the ecosystem.
+            A unified command center for orchestrating AI tools, repos, and agents.
+            Dispatch intents, monitor tasks, and run workflows across your entire agency.
           </p>
         </div>
 
@@ -106,14 +106,13 @@ export function AboutPage() {
           </CardHeader>
           <CardContent className="space-y-4 text-text-secondary">
             <p>
-              AI Nexus was built to help developers, researchers, and enthusiasts navigate
-              the rapidly evolving AI landscape. We believe in making complex technology
-              accessible through beautiful, intuitive visualizations.
+              One Person Agency was built to give a single operator control over an army of AI
+              tools and repos. It auto-discovers modules, routes natural-language intents,
+              executes them safely, and remembers context across tasks.
             </p>
             <p>
-              Our dashboard aggregates data from across the AI ecosystem, providing
-              real-time insights into trending models, emerging frameworks, and the
-              connections between different technologies.
+              The dashboard aggregates your agency registry, task stream, approval queue, and
+              discovery feed into one interface you can use through the web, CLI, Telegram, or MCP.
             </p>
           </CardContent>
         </Card>

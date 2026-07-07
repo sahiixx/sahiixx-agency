@@ -2,18 +2,20 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install system deps
+# Install system dependencies:
+# - git: required for repo discovery/cloning
+# - curl: required by Docker healthchecks
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python deps
-COPY pyproject.toml ./
-COPY README.md ./
-RUN pip install --no-cache-dir -e "."
-
-# Copy app
+# Install Python package
+COPY pyproject.toml README.md ./
 COPY sahiixx_agency/ ./sahiixx_agency/
+RUN pip install --no-cache-dir .
+
+# Copy runtime assets
 COPY config/ ./config/
 COPY dashboard/ ./dashboard/
 

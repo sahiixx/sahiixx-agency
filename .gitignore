@@ -14,6 +14,8 @@ build/
 data/*.db
 data/*.sqlite
 data/*.sqlite3
+data/registry.json
+data_test/registry.json
 *.db
 *.sqlite
 *.sqlite3

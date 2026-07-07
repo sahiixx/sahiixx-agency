@@ -90,6 +90,11 @@ def _load_config() -> AgencyConfig:
     )
 
 
+def get_engine() -> AgencyEngine:
+    """Return a configured AgencyEngine instance."""
+    return AgencyEngine(_load_config())
+
+
 @app.command()
 def sync(
     username: str = typer.Option("sahiixx", "--user", "-u", help="GitHub username to sync"),
@@ -862,6 +867,114 @@ def health() -> None:
             await engine.stop_worker()
 
     asyncio.run(_run())
+
+
+# ---------- Marketplace ----------
+
+
+marketplace_app = typer.Typer(
+    name="marketplace",
+    help="Discover and install agency modules",
+    rich_markup_mode="rich",
+)
+app.add_typer(marketplace_app)
+
+
+def _print_marketplace_list(
+    project: str | None = None,
+    category: str | None = None,
+    query: str = "",
+) -> None:
+    engine = get_engine()
+    cat: RepoCategory | None = None
+    if category:
+        try:
+            cat = RepoCategory(category)
+        except ValueError:
+            console.print(f"[red]Unknown category: {category}[/red]")
+            raise typer.Exit(1) from None
+    listings = asyncio.run(engine.marketplace.list_modules(project_id=project, query=query, category=cat))
+    table = Table(title="Marketplace Modules")
+    table.add_column("ID")
+    table.add_column("Category")
+    table.add_column("Rating")
+    table.add_column("Installs")
+    table.add_column("Enabled")
+    for listing in listings:
+        enabled = "✓" if (project and project in listing.enabled_projects) else ""
+        table.add_row(
+            listing.module.id,
+            listing.module.category.value,
+            f"{listing.average_rating:.1f} ({listing.rating_count})",
+            str(listing.install_count),
+            enabled,
+        )
+    console.print(table)
+
+
+@marketplace_app.callback(invoke_without_command=True)
+def marketplace_callback(
+    ctx: typer.Context,
+    project: str | None = typer.Option(None, "--project", help="Filter by project enablement"),
+    category: str | None = typer.Option(None, "--category", help="Filter by category"),
+    query: str | None = typer.Option(None, "--query", "-q", help="Search query"),
+) -> None:
+    """Marketplace commands."""
+    if ctx.invoked_subcommand is None:
+        _print_marketplace_list(project=project, category=category, query=query or "")
+
+
+@marketplace_app.command("list")
+def marketplace_list(
+    project: str | None = typer.Option(None, "--project", help="Filter by project enablement"),
+    category: str | None = typer.Option(None, "--category", help="Filter by category"),
+    query: str | None = typer.Option(None, "--query", "-q", help="Search query"),
+) -> None:
+    """List marketplace modules."""
+    _print_marketplace_list(project=project, category=category, query=query or "")
+
+
+@marketplace_app.command("install")
+def marketplace_install(module_id: str) -> None:
+    """Install a marketplace module."""
+    engine = get_engine()
+    listing = asyncio.run(engine.marketplace.install_module(module_id))
+    console.print(f"Installed [bold]{module_id}[/bold] (global install count: {listing.install_count})")
+
+
+@marketplace_app.command("enable")
+def marketplace_enable(
+    module_id: str,
+    project: str = typer.Option(..., "--project", help="Project ID to enable for"),
+) -> None:
+    """Enable a module for a project."""
+    engine = get_engine()
+    asyncio.run(engine.marketplace.enable_module(module_id, project))
+    console.print(f"Enabled [bold]{module_id}[/bold] for project {project}")
+
+
+@marketplace_app.command("disable")
+def marketplace_disable(
+    module_id: str,
+    project: str = typer.Option(..., "--project", help="Project ID to disable for"),
+) -> None:
+    """Disable a module for a project."""
+    engine = get_engine()
+    asyncio.run(engine.marketplace.disable_module(module_id, project))
+    console.print(f"Disabled [bold]{module_id}[/bold] for project {project}")
+
+
+@marketplace_app.command("rate")
+def marketplace_rate(
+    module_id: str,
+    score: float = typer.Argument(..., help="Rating from 1 to 5", min=1.0, max=5.0),
+    user: str = typer.Option("operator", "--user", help="User ID"),
+    review: str | None = typer.Option(None, "--review", help="Optional review text"),
+) -> None:
+    """Rate a marketplace module."""
+    engine = get_engine()
+    listing = asyncio.run(engine.marketplace.rate_module(module_id, user, score, review or ""))
+    console.print(f"Rated [bold]{module_id}[/bold]: {listing.average_rating:.1f} ({listing.rating_count} ratings)")
 
 
 @app.callback()

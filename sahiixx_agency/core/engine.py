@@ -104,6 +104,9 @@ class AgencyEngine:
             self.memory,
             clone_manager=self.runner.clone_manager,
             data_dir=self.config.data_dir,
+            network_policy=self.network_policy,
+            dependency_scanner=self.dependency_scanner,
+            audit_logger=self.audit,
         )
         self.router.engine = self
         self._running = False

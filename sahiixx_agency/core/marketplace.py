@@ -72,6 +72,10 @@ class MarketplaceManager:
             return False
         return module_id in enabled
 
+    def is_enabled_for_project(self, module_id: str, project_id: str) -> bool:
+        """Public accessor for project enablement checks."""
+        return self._is_enabled_for_project(module_id, project_id)
+
     def _check_network_policy(self, node: RepoNode) -> None:
         """Verify declared external hosts against the egress policy.
 

@@ -8,6 +8,7 @@ import Agency from './pages/Agency'
 import Workflows from './pages/Workflows'
 import Metrics from './pages/Metrics'
 import LLMPage from './components/llm/LLMPage'
+import MarketplacePage from './pages/Marketplace'
 import { TodoPage } from './components/todos/TodoPage'
 import { ContactPage } from './components/contact/ContactPage'
 import { AboutPage } from './components/about/AboutPage'
@@ -99,6 +100,7 @@ export default function App() {
               <Route path="/workflows" element={<Workflows />} />
               <Route path="/metrics" element={<Metrics />} />
               <Route path="/llm" element={<LLMPage />} />
+              <Route path="/marketplace" element={<MarketplacePage />} />
               <Route path="/todos" element={<TodoPage />} />
               <Route path="/contact" element={<ContactPage />} />
               <Route path="/about" element={<AboutPage />} />

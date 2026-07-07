@@ -292,3 +292,12 @@ async def test_engine_marketplace_filters_routing_by_project(tmp_path) -> None:
     await engine.marketplace.enable_module("html-anything", "p1")
     candidates3 = engine.router.score_candidates(task2)
     assert any(c.module_id == "html-anything" for c in candidates3)
+
+
+def test_engine_marketplace_security_gates_wired(tmp_path) -> None:
+    """MarketplaceManager created by AgencyEngine must receive security dependencies."""
+    config = AgencyConfig(data_dir=str(tmp_path), memory_backend="json")
+    engine = AgencyEngine(config)
+    assert engine.marketplace.network_policy is not None
+    assert engine.marketplace.dependency_scanner is not None
+    assert engine.marketplace.audit_logger is not None

@@ -21,6 +21,7 @@ from sahiixx_agency.core.models import (
     AgencyConfig,
     AgencyTask,
     LLMMessage,
+    MarketplaceListing,
     NotificationChannel,
     RepoCategory,
     TaskLogEntry,
@@ -991,6 +992,95 @@ async def graph_data(engine: Annotated[AgencyEngine, Depends(get_engine)]) -> di
             "totalLanguages": len(layers),
         },
     }
+
+
+# ---------- Marketplace ----------
+
+
+@app.get("/marketplace", response_model=list[MarketplaceListing])
+async def list_marketplace(
+    engine: Annotated[AgencyEngine, Depends(get_engine)],
+    project_id: str | None = Query(None),
+    q: str = Query(""),
+    category: RepoCategory | None = None,
+) -> list[MarketplaceListing]:
+    """List marketplace modules, optionally filtered by project, query, or category."""
+    return await engine.marketplace.list_modules(project_id=project_id, query=q, category=category)
+
+
+@app.get("/marketplace/{module_id}", response_model=MarketplaceListing)
+async def get_marketplace_module(
+    module_id: str,
+    engine: Annotated[AgencyEngine, Depends(get_engine)],
+    project_id: str | None = Query(None),
+) -> MarketplaceListing:
+    """Get a single marketplace listing by module id."""
+    listing = await engine.marketplace.get_module(module_id, project_id=project_id)
+    if listing is None:
+        raise HTTPException(status_code=404, detail="Module not found")
+    return listing
+
+
+@app.post("/marketplace/{module_id}/install", response_model=MarketplaceListing)
+async def install_marketplace_module(
+    module_id: str,
+    engine: Annotated[AgencyEngine, Depends(get_engine)],
+) -> MarketplaceListing:
+    """Install a marketplace module globally."""
+    try:
+        return await engine.marketplace.install_module(module_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.post("/marketplace/{module_id}/enable", response_model=MarketplaceListing)
+async def enable_marketplace_module(
+    module_id: str,
+    project_id: Annotated[str, Query(...)],
+    engine: Annotated[AgencyEngine, Depends(get_engine)],
+) -> MarketplaceListing:
+    """Enable a marketplace module for a specific project."""
+    try:
+        return await engine.marketplace.enable_module(module_id, project_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.post("/marketplace/{module_id}/disable", response_model=MarketplaceListing)
+async def disable_marketplace_module(
+    module_id: str,
+    project_id: Annotated[str, Query(...)],
+    engine: Annotated[AgencyEngine, Depends(get_engine)],
+) -> MarketplaceListing:
+    """Disable a marketplace module for a specific project."""
+    try:
+        return await engine.marketplace.disable_module(module_id, project_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+class RateModuleRequest(BaseModel):
+    user_id: str
+    score: float
+    review: str = ""
+
+
+@app.post("/marketplace/{module_id}/rate", response_model=MarketplaceListing)
+async def rate_marketplace_module(
+    module_id: str,
+    rating: RateModuleRequest,
+    engine: Annotated[AgencyEngine, Depends(get_engine)],
+) -> MarketplaceListing:
+    """Rate a marketplace module."""
+    try:
+        return await engine.marketplace.rate_module(
+            module_id,
+            user_id=rating.user_id,
+            score=rating.score,
+            review=rating.review,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 # Static dashboard files

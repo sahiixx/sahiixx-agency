@@ -33,6 +33,7 @@ function LogoMark({ className }: { className?: string }) {
 
 const links = [
   { label: 'Graph', path: '/' },
+  { label: 'Marketplace', path: '/marketplace' },
   { label: 'LLM', path: '/llm' },
   { label: 'Workflows', path: '/workflows' },
   { label: 'Metrics', path: '/metrics' },

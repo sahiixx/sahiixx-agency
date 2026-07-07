@@ -2,14 +2,20 @@
 
 from __future__ import annotations
 
+import logging
 import re
 import uuid
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .bus import MessageBus
 from .models import AgencyConfig, AgencyTask, BusMessage, RepoCategory, RepoNode, RoutingRule, TaskStatus
 from .registry import RepoRegistry
+
+if TYPE_CHECKING:
+    from .engine import AgencyEngine
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -34,7 +40,7 @@ class TaskRouter:
         registry: RepoRegistry,
         bus: MessageBus,
         config: AgencyConfig | None = None,
-        engine: Any | None = None,
+        engine: AgencyEngine | None = None,
     ) -> None:
         self.registry = registry
         self.bus = bus
@@ -177,9 +183,16 @@ class TaskRouter:
             if score <= 0:
                 continue
             if task.project_id and self.engine is not None:
-                enabled = self.engine.marketplace._is_enabled_for_project(mod.id, task.project_id)
+                enabled = self.engine.marketplace.is_enabled_for_project(mod.id, task.project_id)
                 if not enabled:
                     continue
+            elif task.project_id:
+                logger.warning(
+                    "Task %s has project_id %s but router has no engine reference; "
+                    "project enablement filtering is skipped.",
+                    task.id,
+                    task.project_id,
+                )
             candidates.append(Candidate(module_id=mod.id, score=score))
         candidates.sort(key=lambda c: c.score, reverse=True)
         return candidates

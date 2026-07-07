@@ -17,6 +17,13 @@ data/*.sqlite3
 *.db
 *.sqlite
 *.sqlite3
+data/repos/
+data/task-logs/
+data_test/discovery/
+
+# Runtime
+runtime-pids.json
+tmp/
 
 # Testing
 .pytest_cache/
@@ -39,6 +46,11 @@ dashboard/node_modules/
 # OS
 .DS_Store
 Thumbs.db
+
+# Screenshots / scratch images
+*-screenshot*.png
+dashboard-final.png
+dashboard-screenshot*.png
 
 # Env
 .env

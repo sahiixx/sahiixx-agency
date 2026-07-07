@@ -8,12 +8,20 @@ import os
 import shlex
 import subprocess
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 from .models import RepoNode
 from .security import AuditLogger, NetworkPolicy
 
 logger = logging.getLogger(__name__)
+
+
+class CloneManagerLike(Protocol):
+    """Structural interface for injectable clone managers."""
+
+    async def clone(self, node: RepoNode) -> Path:
+        """Clone or locate the repo and return its local path."""
+        ...
 
 
 class CloneManager:
@@ -156,7 +164,7 @@ class RepoRunner:
 
     def __init__(
         self,
-        clone_manager: CloneManager | None = None,
+        clone_manager: CloneManagerLike | None = None,
         network_policy: NetworkPolicy | None = None,
         audit_logger: AuditLogger | None = None,
     ) -> None:

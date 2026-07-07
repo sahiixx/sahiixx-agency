@@ -592,3 +592,25 @@ class ChatThread(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+
+class MarketplaceListing(BaseModel):
+    """A registry module decorated with marketplace metadata."""
+
+    module: RepoNode
+    install_count: int = 0
+    average_rating: float = 0.0
+    rating_count: int = 0
+    installed_globally: bool = False
+    enabled_projects: list[str] = Field(default_factory=list)
+
+
+class MarketplaceRating(BaseModel):
+    """A user rating for a marketplace module."""
+
+    id: str = Field(...)
+    module_id: str = Field(...)
+    user_id: str = Field(...)
+    score: float = Field(..., ge=1.0, le=5.0)
+    review: str = ""
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+

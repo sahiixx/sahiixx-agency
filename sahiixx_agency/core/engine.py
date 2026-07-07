@@ -18,6 +18,7 @@ from .dependency_scanner import DependencyScanner
 from .llm import LLMManager
 from .logger import TaskLogger
 from .ltm import LongTermMemory
+from .marketplace import MarketplaceManager
 from .memory import AgencyMemory
 from .metrics import MetricsCollector
 from .models import (
@@ -98,6 +99,13 @@ class AgencyEngine:
         self.task_logger = TaskLogger(self.config.data_dir)
         self.scheduler.load_schedules()
         self.long_term_memory = LongTermMemory(self.memory)
+        self.marketplace = MarketplaceManager(
+            self.registry,
+            self.memory,
+            clone_manager=self.runner.clone_manager,
+            data_dir=self.config.data_dir,
+        )
+        self.router.engine = self
         self._running = False
         self._worker_task: asyncio.Task[Any] | None = None
         self._task_queue: asyncio.Queue[AgencyTask] = asyncio.Queue()

@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-07-06T13:29:15.363686+00:00",
+  "updated_at": "2026-07-07T09:59:02.921184+00:00",
   "module_count": 1,
   "modules": [
     {
@@ -29,7 +29,8 @@
       "local_path": null,
       "last_synced": null,
       "source": "discovery",
-      "risk_level": "low"
+      "risk_level": "low",
+      "external_hosts": []
     }
   ]
 }

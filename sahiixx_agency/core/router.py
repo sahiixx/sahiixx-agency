@@ -4,11 +4,20 @@ from __future__ import annotations
 
 import re
 import uuid
+from dataclasses import dataclass
 from typing import Any
 
 from .bus import MessageBus
 from .models import AgencyConfig, AgencyTask, BusMessage, RepoCategory, RepoNode, RoutingRule, TaskStatus
 from .registry import RepoRegistry
+
+
+@dataclass
+class Candidate:
+    """A scored module candidate returned by the router."""
+
+    module_id: str
+    score: float
 
 
 class TaskRouter:
@@ -25,10 +34,12 @@ class TaskRouter:
         registry: RepoRegistry,
         bus: MessageBus,
         config: AgencyConfig | None = None,
+        engine: Any | None = None,
     ) -> None:
         self.registry = registry
         self.bus = bus
         self.config = config or AgencyConfig()
+        self.engine = engine
         # Pre-compile routing rule patterns for efficiency
         self._compiled_rules: list[tuple[re.Pattern[str], RoutingRule]] = [
             (re.compile(rule.pattern, re.IGNORECASE), rule) for rule in self.config.routing_rules
@@ -104,6 +115,8 @@ class TaskRouter:
                 node = self.registry.get(target_key)
             if node is not None:
                 update: dict[str, Any] = {"id": target_key}
+                if eco.get("category"):
+                    update["category"] = RepoCategory(eco["category"])
                 eco_adapter_config = eco.get("adapter_config")
                 if eco_adapter_config:
                     update["adapter_config"] = {**node.adapter_config, **eco_adapter_config}
@@ -122,28 +135,54 @@ class TaskRouter:
         # Direct registry lookup as final fallback
         return self.registry.get(target_key)
 
+    def _score_module(self, intent: str, mod: RepoNode) -> float:
+        """Compute a relevance score for ``mod`` against ``intent``."""
+        words = set(intent.lower().split())
+        score = 0.0
+        parts = [mod.name, mod.description or "", *mod.capabilities]
+        text = " ".join(parts).lower()
+        for word in words:
+            if word in text:
+                score += 1.0
+            if word in (mod.name or "").lower():
+                score += 2.0
+        if mod.stars > 0:
+            score += min(mod.stars / 1000, 3.0)
+        if mod.category != RepoCategory.UNCATEGORIZED:
+            score += 0.5
+        return score
+
     def _score_modules(self, intent: str) -> list[RepoNode]:
         """Score all modules by relevance to the intent."""
-        words = set(intent.lower().split())
         scored: list[tuple[float, RepoNode]] = []
         for mod in self.registry.modules:
             if mod.status.value in ("error", "inactive"):
                 continue
-            score = 0.0
-            parts = [mod.name, mod.description or "", *mod.capabilities]
-            text = " ".join(parts).lower()
-            for word in words:
-                if word in text:
-                    score += 1.0
-                if word in (mod.name or "").lower():
-                    score += 2.0
-            if mod.stars > 0:
-                score += min(mod.stars / 1000, 3.0)
-            if mod.category != RepoCategory.UNCATEGORIZED:
-                score += 0.5
+            score = self._score_module(intent, mod)
             scored.append((score, mod))
         scored.sort(key=lambda x: x[0], reverse=True)
         return [mod for _, mod in scored if _ > 0]
+
+    def score_candidates(self, task: AgencyTask) -> list[Candidate]:
+        """Score modules for ``task``, filtering by project enablement.
+
+        When ``task.project_id`` is set, only modules that have been enabled for
+        that project through the marketplace are returned.
+        """
+        candidates: list[Candidate] = []
+        for mod in self.registry.modules:
+            if mod.status.value in ("error", "inactive"):
+                continue
+            score = self._score_module(task.intent, mod)
+            if score <= 0:
+                continue
+            if task.project_id and self.engine is not None:
+                enabled = self.engine.marketplace._is_enabled_for_project(mod.id, task.project_id)
+                if not enabled:
+                    continue
+            candidates.append(Candidate(module_id=mod.id, score=score))
+        candidates.sort(key=lambda c: c.score, reverse=True)
+        return candidates
 
     def _infer_category(self, intent: str) -> RepoCategory:
         intent_lower = intent.lower()

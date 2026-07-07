@@ -48,13 +48,18 @@ dashboard/node_modules/
 Thumbs.db
 
 # Screenshots / scratch images
-*-screenshot*.png
-dashboard-final.png
-dashboard-screenshot*.png
+screenshots/
+scratch/
+*.tmp
 
-# Env
+# Environment / secrets
 .env
-.env.local
+.env.*
+!.env.example
 
-# Worktrees
-.worktrees/
+# Marketplace cache
+marketplace-cache/
+
+# Playwright / e2e
+playwright-report/
+test-results/

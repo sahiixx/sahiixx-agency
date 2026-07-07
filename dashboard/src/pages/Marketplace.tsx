@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Package, Star, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -35,7 +35,7 @@ interface MarketplaceListing {
 }
 
 const CATEGORIES = [
-  { value: '', label: 'All categories' },
+  { value: '_all', label: 'All categories' },
   { value: 'agent_framework', label: 'Agent Framework' },
   { value: 'voice_ai', label: 'Voice AI' },
   { value: 'security', label: 'Security' },
@@ -51,6 +51,7 @@ export default function MarketplacePage() {
   const [listings, setListings] = useState<MarketplaceListing[]>([])
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('')
+  const [projectInput, setProjectInput] = useState(projectId)
   const [loading, setLoading] = useState(false)
   const [actionId, setActionId] = useState<string | null>(null)
 
@@ -62,7 +63,7 @@ export default function MarketplacePage() {
     return `/api/marketplace?${params.toString()}`
   }
 
-  const fetchListings = async () => {
+  const fetchListings = useCallback(async () => {
     setLoading(true)
     try {
       const res = await fetch(buildUrl())
@@ -74,27 +75,35 @@ export default function MarketplacePage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [projectId, query, category])
 
   useEffect(() => {
     fetchListings()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, query, category])
+  }, [fetchListings])
 
-  const updateProjectId = (value: string) => {
-    const next = new URLSearchParams(searchParams)
-    if (value) {
-      next.set('project_id', value)
-    } else {
-      next.delete('project_id')
-    }
-    setSearchParams(next)
-  }
+  useEffect(() => {
+    setProjectInput(projectId)
+  }, [projectId])
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev)
+        if (projectInput) {
+          next.set('project_id', projectInput)
+        } else {
+          next.delete('project_id')
+        }
+        return next
+      })
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [projectInput, setSearchParams])
 
   const install = async (moduleId: string) => {
     setActionId(moduleId)
     try {
-      const res = await fetch(`/api/marketplace/${moduleId}/install`, { method: 'POST' })
+      const res = await fetch(`/api/marketplace/${encodeURIComponent(moduleId)}/install`, { method: 'POST' })
       if (!res.ok) throw new Error('Install failed')
       toast.success('Module installed')
       await fetchListings()
@@ -112,7 +121,7 @@ export default function MarketplacePage() {
     }
     setActionId(moduleId)
     try {
-      const res = await fetch(`/api/marketplace/${moduleId}/enable?project_id=${projectId}`, {
+      const res = await fetch(`/api/marketplace/${moduleId}/enable?project_id=${encodeURIComponent(projectId)}`, {
         method: 'POST',
       })
       if (!res.ok) throw new Error('Enable failed')
@@ -132,7 +141,7 @@ export default function MarketplacePage() {
     }
     setActionId(moduleId)
     try {
-      const res = await fetch(`/api/marketplace/${moduleId}/disable?project_id=${projectId}`, {
+      const res = await fetch(`/api/marketplace/${moduleId}/disable?project_id=${encodeURIComponent(projectId)}`, {
         method: 'POST',
       })
       if (!res.ok) throw new Error('Disable failed')
@@ -164,7 +173,7 @@ export default function MarketplacePage() {
             onChange={(e) => setQuery(e.target.value)}
             className="md:max-w-sm"
           />
-          <Select value={category} onValueChange={setCategory}>
+          <Select value={category || '_all'} onValueChange={(val) => setCategory(val === '_all' ? '' : val)}>
             <SelectTrigger className="md:w-48">
               <SelectValue placeholder="All categories" />
             </SelectTrigger>
@@ -179,8 +188,8 @@ export default function MarketplacePage() {
           <Input
             type="text"
             placeholder="Project ID (optional)"
-            value={projectId}
-            onChange={(e) => updateProjectId(e.target.value)}
+            value={projectInput}
+            onChange={(e) => setProjectInput(e.target.value)}
             className="md:max-w-sm md:ml-auto"
           />
         </div>

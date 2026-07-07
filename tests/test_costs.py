@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 
 import httpx
 import pytest
 from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
-from sahiixx_agency.api.main import app as api_app, get_engine
+from sahiixx_agency.api.main import get_engine
 from sahiixx_agency.cli.main import app as cli_app
 from sahiixx_agency.core.costs import CostLedger
 from sahiixx_agency.core.engine import AgencyEngine
@@ -23,8 +23,6 @@ from sahiixx_agency.core.models import (
     LLMMessage,
     LLMProvider,
     LLMProviderConfig,
-    LLMResponse,
-    LLMUsage,
     RepoCategory,
     RepoNode,
     TaskStatus,

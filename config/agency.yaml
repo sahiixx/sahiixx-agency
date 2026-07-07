@@ -304,11 +304,15 @@ routing_rules:
     target: t3mp3st
   - pattern: "voice|speak|listen|call"
     target: friday
-  - pattern: "memory|remember|recall|forget"
-    target: memory
-  - pattern: "graph|trust|relationship|code context"
-    target: graph
-  - pattern: "dubai|real estate|listing|lead|broker"
+  - pattern: "letta|persistent.memory|stateful.agent|local.agent|spin up.*agent.*long-term memory|agent with long-term memory|stateful agent|memory agent"
+    target: letta_code
+  - pattern: "resume|candidate|hire|hiring|evaluate.profile|screen|recruit"
+    target: hiring_agent
+  - pattern: "job|career|apply|linkedin|cv|resume"
+    target: career_ops
+  - pattern: "html|landing.page|landingpage|deck|magazine|report|social.post|generate.page|cinematic|html-anything|nexu-io|open design"
+    target: html_anything
+  - pattern: "geo|dubai|real.estate|listing|geoflow"
     target: geoflow
   - pattern: "swarm|multi.agent|orchestrat"
     target: swarm
@@ -328,10 +332,4 @@ routing_rules:
     target: youtube_automation_agent
   - pattern: "obsidian|second.brain|vault|wiki|notes"
     target: claude_obsidian
-  - pattern: "letta|persistent.memory|stateful.agent|local.agent"
-    target: letta_code
-  - pattern: "job|career|apply|linkedin|cv|resume"
-    target: career_ops
-  - pattern: "html|landing.page|landingpage|deck|magazine|report|social.post|generate.page|cinematic|html-anything|nexu-io|open design"
-    target: html_anything
 

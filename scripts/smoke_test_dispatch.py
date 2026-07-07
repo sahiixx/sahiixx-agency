@@ -39,6 +39,10 @@ EXPECTED_ROUTES = {
         "module_id": "hiring-agent",
         "category": "agent_framework",
     },
+    "spin up a stateful agent with long-term memory": {
+        "module_id": "letta-code",
+        "category": "agent_framework",
+    },
 }
 
 

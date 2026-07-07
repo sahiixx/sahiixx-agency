@@ -667,6 +667,24 @@ class AgencyEngine:
                                 "capabilities": mod.capabilities,
                                 "execution": run_result,
                             }
+                        elif task.module_id.lower() in {"letta-code", "letta_code"}:
+                            from sahiixx_agency.adapters.agent_framework.letta_code_adapter import LettaCodeAdapter
+
+                            lc_payload = dict(task.payload)
+                            lc_payload.setdefault("brief", task.intent)
+                            lc_adapter = LettaCodeAdapter(
+                                clone_base_dir=os.path.join(self.config.data_dir, "repos"),
+                                network_policy=self.network_policy,
+                                audit_logger=self.audit,
+                            )
+                            run_result = await lc_adapter.run(mod, lc_payload)
+                            task.result = {
+                                "module": mod.name,
+                                "category": mod.category.value,
+                                "url": mod.url,
+                                "capabilities": mod.capabilities,
+                                "execution": run_result,
+                            }
                         elif task.module_id.lower() == "openmontage":
                             from sahiixx_agency.adapters.video.open_montage_adapter import OpenMontageAdapter
 

@@ -71,10 +71,8 @@ class SecretsManager:
         """Register a secret, preferring environment over config."""
         env_var = env_var or name
         raw = os.environ.get(env_var) if env_var else None
-        source = "env"
         if raw is None and config_value is not None:
             raw = config_value
-            source = "config"
 
         if raw is not None and self._looks_like_placeholder(raw):
             raise ValueError(

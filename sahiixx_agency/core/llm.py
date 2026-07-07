@@ -303,7 +303,7 @@ def create_provider(provider_name: str, config: LLMConfig | None) -> BaseLLMProv
 class LLMCostTracker:
     """Records and aggregates LLM usage through the agency memory store."""
 
-    def __init__(self, memory: AgencyMemory, ledger: "CostLedger" | None = None) -> None:
+    def __init__(self, memory: AgencyMemory, ledger: CostLedger | None = None) -> None:
         self.memory = memory
         self.ledger = ledger
 
@@ -418,7 +418,7 @@ class LLMManager:
         self,
         config: LLMConfig | None,
         memory: AgencyMemory,
-        ledger: "CostLedger" | None = None,
+        ledger: CostLedger | None = None,
     ) -> None:
         self.config = config or LLMConfig()
         self.memory = memory

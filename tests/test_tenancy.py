@@ -28,7 +28,7 @@ def test_create_and_list_tenants(engine: AgencyEngine) -> None:
 def test_create_and_list_projects(engine: AgencyEngine) -> None:
     tenant = engine.create_tenant("Acme")
     p1 = engine.create_project(tenant.id, "Website")
-    p2 = engine.create_project(tenant.id, "Mobile")
+    _ = engine.create_project(tenant.id, "Mobile")
     assert p1.tenant_id == tenant.id
     projects = engine.list_projects(tenant_id=tenant.id)
     assert len(projects) == 2

@@ -17,10 +17,22 @@ mcp = FastMCP("sahiixx-agency")
 _engine: AgencyEngine | None = None
 
 
+def _load_config() -> AgencyConfig:
+    config_path = os.environ.get("OPA_CONFIG", "./config/agency.yaml")
+    config = AgencyConfig()
+    if os.path.exists(config_path):
+        import yaml
+
+        with open(config_path, encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+        config = AgencyConfig.model_validate(data)
+    return config
+
+
 def _get_engine() -> AgencyEngine:
     global _engine
     if _engine is None:
-        _engine = AgencyEngine(AgencyConfig())
+        _engine = AgencyEngine(_load_config())
     return _engine
 
 

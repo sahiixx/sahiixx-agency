@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 import httpx
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 from typer.testing import CliRunner
 
 from sahiixx_agency.api.main import get_engine
@@ -97,7 +99,7 @@ def test_cost_record_defaults():
 
 
 def test_cost_record_validates_negative_amount():
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         CostRecord(category="llm", amount=-1.0)
 
 

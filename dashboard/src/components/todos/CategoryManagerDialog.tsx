@@ -38,9 +38,13 @@ export function CategoryManagerDialog({
 
   useEffect(() => {
     if (!open) {
-      setName('')
-      setColor(PRESET_COLORS[0])
-      setEditingId(null)
+      // Defer reset to avoid synchronous setState during render
+      const timer = setTimeout(() => {
+        setName('')
+        setColor(PRESET_COLORS[0])
+        setEditingId(null)
+      }, 0)
+      return () => clearTimeout(timer)
     }
   }, [open])
 

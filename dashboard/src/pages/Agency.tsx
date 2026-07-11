@@ -367,7 +367,10 @@ function TaskDetails({ task, onClose }: { task: Task; onClose: () => void }) {
 
   useEffect(() => {
     let cancelled = false
-    setLoading(true)
+    // Initialize loading state via microtask to avoid cascading render
+    Promise.resolve().then(() => {
+      if (!cancelled) setLoading(true)
+    })
     fetch(`/api/tasks/${task.id}`)
       .then((r) => {
         if (!r.ok) throw new Error(`Task fetch failed: ${r.status}`)

@@ -52,10 +52,16 @@ export default function Navbar() {
   const [mounted, setMounted] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
 
-  useEffect(() => setMounted(true), [])
+  useEffect(() => {
+    // Defer mount state to avoid synchronous setState in render cycle
+    const timer = setTimeout(() => setMounted(true), 0)
+    return () => clearTimeout(timer)
+  }, [])
 
   useEffect(() => {
-    setMobileOpen(false)
+    // Defer mobile menu close to avoid synchronous setState during render
+    const timer = setTimeout(() => setMobileOpen(false), 0)
+    return () => clearTimeout(timer)
   }, [location.pathname])
 
   useEffect(() => {

@@ -55,18 +55,14 @@ export default function MarketplacePage() {
   const [loading, setLoading] = useState(false)
   const [actionId, setActionId] = useState<string | null>(null)
 
-  const buildUrl = () => {
-    const params = new URLSearchParams()
-    if (projectId) params.set('project_id', projectId)
-    if (query) params.set('q', query)
-    if (category) params.set('category', category)
-    return `/api/marketplace?${params.toString()}`
-  }
-
   const fetchListings = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch(buildUrl())
+      const params = new URLSearchParams()
+      if (projectId) params.set('project_id', projectId)
+      if (query) params.set('q', query)
+      if (category) params.set('category', category)
+      const res = await fetch(`/api/marketplace?${params.toString()}`)
       if (!res.ok) throw new Error('Failed to fetch marketplace listings')
       const data = (await res.json()) as MarketplaceListing[]
       setListings(data)

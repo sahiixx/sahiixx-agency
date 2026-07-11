@@ -33,7 +33,7 @@ opa dispatch "run voice assistant"
 opa dispatch "run voice assistant" --no-wait
 
 # Check task status
-opa task status <task-id>
+opa task-status <task-id>
 
 # Run intel scout
 opa intel --type trending
@@ -55,16 +55,41 @@ python -m sahiixx_agency.mcp_server.main
 
 ```
 sahiixx-agency/
-├── core/           # Orchestration engine, bus, memory
-├── registry/       # Auto-generated repo manifests
-├── adapters/       # Category-specific integration layers
-├── cli/            # Rich CLI (typer + rich)
-├── api/            # FastAPI server
-├── mcp_server/     # MCP server for external tools
-├── dashboard/      # React visualization app
-├── config/         # Agency YAML config
-└── scripts/        # Setup, sync, deploy scripts
+├── sahiixx_agency/        # Python package
+│   ├── core/              # engine, bus, memory, registry, router, runner, security
+│   ├── adapters/          # category + specialized integration layers
+│   ├── cli/               # Typer + Rich CLI (entry: `opa`)
+│   ├── api/               # FastAPI server
+│   ├── mcp_server/        # MCP server (stdio / SSE)
+│   ├── discovery/         # GitHub repo auto-discovery
+│   └── telegram/         # Telegram bot
+├── dashboard/             # React 19 + Vite + D3 visualization app (separate npm project)
+├── config/                # agency.yaml config
+├── data/                  # registry.json, repos/, task-logs (runtime, gitignored)
+├── tests/                 # pytest suite
+└── scripts/               # setup, sync, deploy, smoke scripts
 ```
+
+## CLI Commands
+
+| Command | Description |
+|---|---|
+| `opa sync` | Discover GitHub repos into the registry |
+| `opa registry` | List/filter registry modules |
+| `opa dispatch "<intent>"` | Dispatch an intent + payload through the engine |
+| `opa do <intent words>` | Shorthand for `dispatch` (joins argv) |
+| `opa exec <module>` | Clone + install + run a module directly |
+| `opa task-status <id>` / `opa task-list` | Inspect dispatched tasks |
+| `opa stats` | Agency summary panel |
+| `opa intel --type <trending\|velocity\|hidden_gems>` | GitHub intelligence scout |
+| `opa serve` | Start the FastAPI server (uvicorn) |
+| `opa telegram-bot` / `opa telegram-career-bot` | Start the Telegram bots |
+| `opa llm-providers` / `opa llm-chat` / `opa llm-costs` | LLM sub-app |
+| `opa workflow-list` / `workflow-create` / `workflow-run` / `workflow-instances` / `workflow-resume` | Workflow engine |
+| `opa notify-send` | Notifications (sse/telegram/email/webhook) |
+| `opa costs` / `opa metrics` / `opa health` | Observability |
+| `opa marketplace-list` / `install` / `enable` / `disable` / `rate` | Module marketplace |
+| `python -m sahiixx_agency.mcp_server.main` | Start the MCP server |
 
 ## API Endpoints
 
@@ -86,21 +111,31 @@ sahiixx-agency/
 
 ## MCP Tools
 
-- `list_modules` — List agency modules
-- `dispatch_task` — Dispatch a task
-- `run_intel_scout` — GitHub intelligence
+- `list_modules` — List agency modules (optionally filtered by category)
+- `dispatch_task` — Dispatch a task and run the worker
+- `run_intel_scout` — GitHub intelligence (trending/velocity/hidden_gems)
 - `agency_stats` — Get statistics
-- `sync_registry` — Sync repos
+- `sync_registry` — Sync repos from GitHub
+- `list_workflows` / `run_workflow` — Workflow engine access
+- `send_notification` — sse/telegram/email/webhook
+- `get_metrics` / `get_health` — Observability
 
 ## Environment Variables
 
 | Variable | Description |
 |---|---|
-| `GITHUB_TOKEN` | GitHub personal access token |
+| `GITHUB_TOKEN` | GitHub personal access token (required for `opa sync`) |
 | `GITHUB_USER` | GitHub username (default: sahiixx) |
-| `OPA_CONFIG` | Path to agency.yaml |
+| `OPA_CONFIG` | Path to agency.yaml (default: config/agency.yaml) |
+| `OPA_API_KEY` | If set, all mutating API endpoints require header `X-OPA-API-Key` |
+| `OPA_CORS_ORIGINS` | Comma-separated allowed CORS origins (default: local dashboard dev servers) |
+| `MCP_TRANSPORT` | `stdio` (default) or `sse` |
+| `MCP_HOST` / `MCP_PORT` | SSE bind host/port (default 127.0.0.1:8081) |
 | `TELEGRAM_BOT_TOKEN` | Telegram bot token (also accepted in agency.yaml) |
-| `TELEGRAM_ALLOWED_CHAT_IDS` | Comma-separated list of allowed Telegram chat IDs |
+| `TELEGRAM_ALLOWED_CHAT_IDS` | Comma-separated allowed chat IDs (empty = allow all — not recommended) |
+| `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `OPENROUTER_API_KEY` | LLM provider keys (all optional) |
+
+See `.env.example` for the full template.
 
 ## License
 

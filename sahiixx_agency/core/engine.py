@@ -6,7 +6,7 @@ import asyncio
 import contextlib
 import os
 import uuid
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -54,6 +54,103 @@ from .runner import CloneManager, RepoRunner
 from .scheduler import WorkflowScheduler
 from .security import AuditLogger, InputSanitizer, NetworkPolicy, SecretsManager
 from .workflows import WorkflowEngine
+
+
+# ─── Specialized adapter registry ──────────────────────────────
+# Maps a normalized module_id to a factory that builds the adapter and returns
+# the payload to run it with. Factories keep heavy imports deferred (matching
+# the prior inline-import behavior). Add new specialized adapters by registering
+# a factory here instead of editing _execute_task's dispatch chain.
+def _adapter_clone_base(config: AgencyConfig) -> str:
+    return os.path.join(config.data_dir, "repos")
+
+
+def _make_t3mp3st(config, network_policy, audit_logger, task):
+    from sahiixx_agency.adapters.security.t3mp3st_mcp import T3mp3stMcpAdapter
+
+    adapter = T3mp3stMcpAdapter(
+        clone_base_dir=_adapter_clone_base(config),
+        approval_token=config.t3mp3st_approval_token,
+        network_policy=network_policy,
+        audit_logger=audit_logger,
+    )
+    return adapter, task.payload
+
+
+def _make_career_ops(config, network_policy, audit_logger, task):
+    from sahiixx_agency.adapters.career.career_ops_adapter import CareerOpsAdapter
+
+    adapter = CareerOpsAdapter(
+        clone_base_dir=_adapter_clone_base(config),
+        network_policy=network_policy,
+        audit_logger=audit_logger,
+    )
+    return adapter, task.payload
+
+
+def _make_hiring_agent(config, network_policy, audit_logger, task):
+    from sahiixx_agency.adapters.hiring.hiring_agent_adapter import HiringAgentAdapter
+
+    adapter = HiringAgentAdapter(
+        clone_base_dir=_adapter_clone_base(config),
+        network_policy=network_policy,
+        audit_logger=audit_logger,
+    )
+    return adapter, task.payload
+
+
+def _make_html_anything(config, network_policy, audit_logger, task):
+    from sahiixx_agency.adapters.design.html_anything_adapter import HtmlAnythingAdapter
+
+    payload = dict(task.payload)
+    payload.setdefault("brief", task.intent)
+    adapter = HtmlAnythingAdapter(
+        clone_base_dir=_adapter_clone_base(config),
+        network_policy=network_policy,
+        audit_logger=audit_logger,
+    )
+    return adapter, payload
+
+
+def _make_letta_code(config, network_policy, audit_logger, task):
+    from sahiixx_agency.adapters.agent_framework.letta_code_adapter import LettaCodeAdapter
+
+    payload = dict(task.payload)
+    payload.setdefault("brief", task.intent)
+    adapter = LettaCodeAdapter(
+        clone_base_dir=_adapter_clone_base(config),
+        network_policy=network_policy,
+        audit_logger=audit_logger,
+    )
+    return adapter, payload
+
+
+def _make_openmontage(config, network_policy, audit_logger, task):
+    from sahiixx_agency.adapters.video.open_montage_adapter import OpenMontageAdapter
+
+    adapter = OpenMontageAdapter(
+        clone_base_dir=_adapter_clone_base(config),
+        network_policy=network_policy,
+        audit_logger=audit_logger,
+    )
+    return adapter, task.payload
+
+
+_SPECIALIZED_ADAPTERS: dict[
+    str,
+    Callable[[AgencyConfig, NetworkPolicy, AuditLogger, AgencyTask], tuple[Any, dict[str, Any]]],
+] = {
+    "t3mp3st": _make_t3mp3st,
+    "career-ops": _make_career_ops,
+    "career_ops": _make_career_ops,
+    "hiring-agent": _make_hiring_agent,
+    "hiring_agent": _make_hiring_agent,
+    "html-anything": _make_html_anything,
+    "html_anything": _make_html_anything,
+    "letta-code": _make_letta_code,
+    "letta_code": _make_letta_code,
+    "openmontage": _make_openmontage,
+}
 
 
 class AgencyEngine:
@@ -610,101 +707,11 @@ class AgencyEngine:
                         if not await self._run_dependency_scan_gate(mod, task):
                             return
 
-                        if task.module_id.lower() == "t3mp3st":
-                            # Use the safety-hardened T3MP3ST MCP adapter
-                            from sahiixx_agency.adapters.security.t3mp3st_mcp import T3mp3stMcpAdapter
-
-                            t3mp3st_adapter = T3mp3stMcpAdapter(
-                                clone_base_dir=os.path.join(self.config.data_dir, "repos"),
-                                approval_token=self.config.t3mp3st_approval_token,
-                                network_policy=self.network_policy,
-                                audit_logger=self.audit,
-                            )
-                            run_result = await t3mp3st_adapter.run(mod, task.payload)
-                            task.result = {
-                                "module": mod.name,
-                                "category": mod.category.value,
-                                "url": mod.url,
-                                "capabilities": mod.capabilities,
-                                "execution": run_result,
-                            }
-                        elif task.module_id.lower() in {"career-ops", "career_ops"}:
-                            from sahiixx_agency.adapters.career.career_ops_adapter import CareerOpsAdapter
-
-                            career_adapter = CareerOpsAdapter(
-                                clone_base_dir=os.path.join(self.config.data_dir, "repos"),
-                                network_policy=self.network_policy,
-                                audit_logger=self.audit,
-                            )
-                            run_result = await career_adapter.run(mod, task.payload)
-                            task.result = {
-                                "module": mod.name,
-                                "category": mod.category.value,
-                                "url": mod.url,
-                                "capabilities": mod.capabilities,
-                                "execution": run_result,
-                            }
-                        elif task.module_id.lower() in {"hiring-agent", "hiring_agent"}:
-                            from sahiixx_agency.adapters.hiring.hiring_agent_adapter import HiringAgentAdapter
-
-                            hiring_adapter = HiringAgentAdapter(
-                                clone_base_dir=os.path.join(self.config.data_dir, "repos"),
-                                network_policy=self.network_policy,
-                                audit_logger=self.audit,
-                            )
-                            run_result = await hiring_adapter.run(mod, task.payload)
-                            task.result = {
-                                "module": mod.name,
-                                "category": mod.category.value,
-                                "url": mod.url,
-                                "capabilities": mod.capabilities,
-                                "execution": run_result,
-                            }
-                        elif task.module_id.lower() in {"html-anything", "html_anything"}:
-                            from sahiixx_agency.adapters.design.html_anything_adapter import HtmlAnythingAdapter
-
-                            html_payload = dict(task.payload)
-                            html_payload.setdefault("brief", task.intent)
-                            html_adapter = HtmlAnythingAdapter(
-                                clone_base_dir=os.path.join(self.config.data_dir, "repos"),
-                                network_policy=self.network_policy,
-                                audit_logger=self.audit,
-                            )
-                            run_result = await html_adapter.run(mod, html_payload)
-                            task.result = {
-                                "module": mod.name,
-                                "category": mod.category.value,
-                                "url": mod.url,
-                                "capabilities": mod.capabilities,
-                                "execution": run_result,
-                            }
-                        elif task.module_id.lower() in {"letta-code", "letta_code"}:
-                            from sahiixx_agency.adapters.agent_framework.letta_code_adapter import LettaCodeAdapter
-
-                            lc_payload = dict(task.payload)
-                            lc_payload.setdefault("brief", task.intent)
-                            lc_adapter = LettaCodeAdapter(
-                                clone_base_dir=os.path.join(self.config.data_dir, "repos"),
-                                network_policy=self.network_policy,
-                                audit_logger=self.audit,
-                            )
-                            run_result = await lc_adapter.run(mod, lc_payload)
-                            task.result = {
-                                "module": mod.name,
-                                "category": mod.category.value,
-                                "url": mod.url,
-                                "capabilities": mod.capabilities,
-                                "execution": run_result,
-                            }
-                        elif task.module_id.lower() == "openmontage":
-                            from sahiixx_agency.adapters.video.open_montage_adapter import OpenMontageAdapter
-
-                            om_adapter = OpenMontageAdapter(
-                                clone_base_dir=os.path.join(self.config.data_dir, "repos"),
-                                network_policy=self.network_policy,
-                                audit_logger=self.audit,
-                            )
-                            run_result = await om_adapter.run(mod, task.payload)
+                        mid = task.module_id.lower()
+                        factory = _SPECIALIZED_ADAPTERS.get(mid)
+                        if factory is not None:
+                            adapter, payload = factory(self.config, self.network_policy, self.audit, task)
+                            run_result = await adapter.run(mod, payload)
                             task.result = {
                                 "module": mod.name,
                                 "category": mod.category.value,

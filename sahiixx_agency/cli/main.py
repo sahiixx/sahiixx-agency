@@ -440,12 +440,14 @@ def telegram_bot(
 @app.command()
 def serve(
     host: str = typer.Option("0.0.0.0", "--host", "-h"),
-    port: int = typer.Option(8080, "--port", "-p"),
+    port: int = typer.Option(0, "--port", "-p", help="API port (default: config api_port or 8082)"),
     reload: bool = typer.Option(False, "--reload", "-r"),
 ) -> None:
     """Start the agency API server."""
     import uvicorn
 
+    if not port:
+        port = _load_config().api_port or 8082
     console.print(
         Panel(f"Starting API at [bold]http://{host}:{port}[/bold]", title="Agency Server", border_style="green")
     )

@@ -9,11 +9,11 @@ sync:
 	.venv/bin/op sync
 
 serve:
-	.venv/bin/uvicorn sahiixx_agency.api.main:app --host 0.0.0.0 --port 8080 --reload
+	.venv/bin/uvicorn sahiixx_agency.api.main:app --host 0.0.0.0 --port 8082 --reload
 
 dev:
 	@echo "Starting API server..."
-	@.venv/bin/uvicorn sahiixx_agency.api.main:app --host 0.0.0.0 --port 8080 &
+	@.venv/bin/uvicorn sahiixx_agency.api.main:app --host 0.0.0.0 --port 8082 &
 	@echo "Starting dashboard dev server..."
 	@cd dashboard && npm run dev
 

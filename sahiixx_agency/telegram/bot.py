@@ -68,6 +68,13 @@ class AgencyTelegramBot:
         from telegram.ext import CallbackQueryHandler, CommandHandler, MessageHandler, filters
 
         await self.setup_engine()
+        if not self.config.telegram.allowed_chat_ids:
+            print(
+                "WARNING: telegram.allowed_chat_ids is empty — the bot will accept "
+                "commands from ANY chat. Set allowed_chat_ids in config/agency.yaml or "
+                "the TELEGRAM_ALLOWED_CHAT_IDS env var to restrict access.",
+                flush=True,
+            )
         application = self._build_app()
         application.bot_data["bot"] = self
 

@@ -8,5 +8,6 @@ from __future__ import annotations
 
 from .agent import JarvisAgent
 from .models import JarvisConfig, JarvisMessage, JarvisResponse
+from .windows_control import WindowsController
 
-__all__ = ["JarvisAgent", "JarvisConfig", "JarvisMessage", "JarvisResponse"]
+__all__ = ["JarvisAgent", "JarvisConfig", "JarvisMessage", "JarvisResponse", "WindowsController"]

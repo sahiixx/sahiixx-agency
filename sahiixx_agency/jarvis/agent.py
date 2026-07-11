@@ -16,6 +16,7 @@ from .models import (
     MessageType,
     MonitorEvent,
 )
+from .windows_control import WindowsController
 
 # Default system prompt for Jarvis
 DEFAULT_SYSTEM_PROMPT = """You are Jarvis, a modern AI assistant inspired by Iron Man's JARVIS.
@@ -52,6 +53,7 @@ class JarvisAgent:
         self.state = JarvisState()
         self._monitor_task: asyncio.Task | None = None
         self._event_handlers: list[Any] = []
+        self._windows = WindowsController()
 
         if not self.config.system_prompt:
             self.config.system_prompt = DEFAULT_SYSTEM_PROMPT
@@ -172,6 +174,24 @@ class JarvisAgent:
             "context": self._cmd_context,
             "help": self._handle_help,
             "?": self._handle_help,
+            # Windows control commands
+            "system": self._cmd_system,
+            "run": self._cmd_run,
+            "open": self._cmd_open,
+            "close": self._cmd_close,
+            "windows": self._cmd_windows,
+            "focus": self._cmd_focus,
+            "clipboard": self._cmd_clipboard,
+            "screenshot": self._cmd_screenshot,
+            "type": self._cmd_type,
+            "key": self._cmd_key,
+            "mouse": self._cmd_mouse,
+            "wifi": self._cmd_wifi,
+            "battery": self._cmd_battery,
+            "network": self._cmd_network,
+            "processes": self._cmd_processes,
+            "install": self._cmd_install,
+            "files": self._cmd_files,
         }
 
         handler = handlers.get(action)
@@ -436,9 +456,211 @@ class JarvisAgent:
                 "- 'What's the status?'\n"
                 "- 'Dispatch a task to scan for vulnerabilities'\n"
                 "- 'Show me the registry'\n"
-                "- 'What modules do we have?'\n"
+                "- 'What modules do we have?'\n\n"
+                "**Device Control:**\n"
+                "- `system` — System info (CPU, memory, disk, battery)\n"
+                "- `run <command>` — Run any shell command\n"
+                "- `open <app>` — Open an application\n"
+                "- `close <app>` — Close an application\n"
+                "- `windows` — List open windows\n"
+                "- `focus <app>` — Focus a window\n"
+                "- `clipboard` — Show clipboard content\n"
+                "- `screenshot` — Take a screenshot\n"
+                "- `type <text>` — Type text\n"
+                "- `key <key>` — Press a key (e.g., key Enter, key ^c)\n"
+                "- `processes` — List running processes\n"
+                "- `wifi` — List WiFi networks\n"
+                "- `battery` — Battery status\n"
+                "- `network` — Network info\n"
+                "- `install <pkg>` — Install a package\n"
+                "- `files <path>` — List directory contents\n"
             )
         )
+
+    async def _cmd_system(self, args: list[str]) -> JarvisResponse:
+        """Show system information."""
+        info = await self._windows.get_system_info()
+        lines = [
+            "**System Information**",
+            f"- Hostname: {info.hostname}",
+            f"- User: {info.username}",
+            f"- OS: {info.os_version}",
+            f"- Python: {info.python_version}",
+            f"- CPU cores: {info.cpu_count}",
+            f"- Memory: {info.memory_available_gb:.1f} GB / {info.memory_total_gb:.1f} GB free",
+            f"- Uptime: {info.uptime_seconds // 3600}h {(info.uptime_seconds % 3600) // 60}m",
+        ]
+        if info.battery:
+            lines.append(f"- Battery: {info.battery['charge_percent']}% ({'charging' if info.battery['charging'] else 'on battery'})")
+        if info.disk_usage:
+            for drive, usage in info.disk_usage.items():
+                lines.append(f"- Disk {drive}: {usage['used']:.1f} GB used, {usage['free']:.1f} GB free")
+        return JarvisResponse(content="\n".join(lines))
+
+    async def _cmd_run(self, args: list[str]) -> JarvisResponse:
+        """Run a shell command."""
+        if not args:
+            return JarvisResponse(content="Usage: run <command>")
+        command = " ".join(args)
+        result = await self._windows.run_command(command, timeout=60)
+        if result["success"]:
+            output = result.get("stdout", "").strip()
+            return JarvisResponse(
+                content=f"**Command:** `{command}`\n\n```\n{output[:2000]}\n```" if output else f"Command completed: `{command}`",
+                action="command_executed",
+            )
+        else:
+            error = result.get("error", result.get("stderr", "Unknown error"))
+            return JarvisResponse(content=f"**Command failed:** `{command}`\n\n```\n{error[:1000]}\n```")
+
+    async def _cmd_open(self, args: list[str]) -> JarvisResponse:
+        """Open an application."""
+        if not args:
+            return JarvisResponse(content="Usage: open <app>\nExamples: open vscode, open chrome, open notepad")
+        app = " ".join(args)
+        result = await self._windows.open_application(app)
+        return JarvisResponse(content=result["message"], action="app_opened", action_data={"app": app})
+
+    async def _cmd_close(self, args: list[str]) -> JarvisResponse:
+        """Close an application."""
+        if not args:
+            return JarvisResponse(content="Usage: close <app>")
+        app = " ".join(args)
+        result = await self._windows.close_application(app)
+        return JarvisResponse(content=result["message"], action="app_closed", action_data={"app": app})
+
+    async def _cmd_windows(self, args: list[str]) -> JarvisResponse:
+        """List open windows."""
+        windows = await self._windows.list_windows()
+        if not windows:
+            return JarvisResponse(content="No windows with visible titles found.")
+        lines = ["**Open Windows**"]
+        for w in windows[:20]:
+            lines.append(f"- {w['name']}: {w['title'][:60]}")
+        return JarvisResponse(content="\n".join(lines))
+
+    async def _cmd_focus(self, args: list[str]) -> JarvisResponse:
+        """Focus a window."""
+        if not args:
+            return JarvisResponse(content="Usage: focus <app>")
+        app = " ".join(args)
+        result = await self._windows.focus_window(app)
+        return JarvisResponse(content=result["message"])
+
+    async def _cmd_clipboard(self, args: list[str]) -> JarvisResponse:
+        """Get or set clipboard."""
+        if args and args[0] == "set":
+            text = " ".join(args[1:])
+            result = await self._windows.set_clipboard(text)
+            return JarvisResponse(content=result["message"])
+        content = await self._windows.get_clipboard()
+        return JarvisResponse(content=f"**Clipboard:**\n```\n{content[:2000]}\n```" if content else "Clipboard is empty.")
+
+    async def _cmd_screenshot(self, args: list[str]) -> JarvisResponse:
+        """Take a screenshot."""
+        path = args[0] if args else None
+        result = await self._windows.take_screenshot(path)
+        return JarvisResponse(
+            content=result["message"],
+            action="screenshot_taken",
+            action_data={"path": result.get("path", "")},
+        )
+
+    async def _cmd_type(self, args: list[str]) -> JarvisResponse:
+        """Type text."""
+        if not args:
+            return JarvisResponse(content="Usage: type <text>")
+        text = " ".join(args)
+        result = await self._windows.type_text(text)
+        return JarvisResponse(content=result["message"])
+
+    async def _cmd_key(self, args: list[str]) -> JarvisResponse:
+        """Press a key."""
+        if not args:
+            return JarvisResponse(content="Usage: key <key>\nExamples: key Enter, key ^c, key {TAB}")
+        key = args[0]
+        result = await self._windows.press_key(key)
+        return JarvisResponse(content=f"Pressed: {key}")
+
+    async def _cmd_mouse(self, args: list[str]) -> JarvisResponse:
+        """Move mouse."""
+        if len(args) < 2:
+            return JarvisResponse(content="Usage: mouse <x> <y>")
+        try:
+            x, y = int(args[0]), int(args[1])
+            result = await self._windows.move_mouse(x, y)
+            return JarvisResponse(content=f"Mouse moved to ({x}, {y})")
+        except ValueError:
+            return JarvisResponse(content="Invalid coordinates. Usage: mouse <x> <y>")
+
+    async def _cmd_wifi(self, args: list[str]) -> JarvisResponse:
+        """List WiFi networks."""
+        networks = await self._windows.get_wifi_networks()
+        if not networks:
+            return JarvisResponse(content="No WiFi networks found.")
+        lines = ["**WiFi Networks**"]
+        for n in networks[:10]:
+            signal = n.get("signal", "?")
+            lines.append(f"- {n.get('ssid', 'Unknown')} — Signal: {signal}")
+        return JarvisResponse(content="\n".join(lines))
+
+    async def _cmd_battery(self, args: list[str]) -> JarvisResponse:
+        """Battery status."""
+        info = await self._windows.get_battery_status()
+        if not info.get("has_battery"):
+            return JarvisResponse(content="No battery detected (desktop or no battery).")
+        lines = [
+            "**Battery Status**",
+            f"- Charge: {info['charge_percent']}%",
+            f"- Status: {'Charging' if info['charging'] else 'On battery'}",
+        ]
+        if info.get("estimated_minutes"):
+            lines.append(f"- Estimated time: {info['estimated_minutes']} minutes")
+        return JarvisResponse(content="\n".join(lines))
+
+    async def _cmd_network(self, args: list[str]) -> JarvisResponse:
+        """Network info."""
+        info = await self._windows.get_network_info()
+        interfaces = info.get("interfaces", [])
+        if not interfaces:
+            return JarvisResponse(content="No network interfaces found.")
+        lines = ["**Network Interfaces**"]
+        for iface in interfaces:
+            lines.append(f"- {iface['name']}: {iface['ip']}/{iface['prefix']}")
+        return JarvisResponse(content="\n".join(lines))
+
+    async def _cmd_processes(self, args: list[str]) -> JarvisResponse:
+        """List processes."""
+        filter_name = args[0] if args else None
+        procs = await self._windows.list_processes(filter_name=filter_name, limit=15)
+        if not procs:
+            return JarvisResponse(content="No processes found.")
+        lines = ["**Top Processes**"]
+        for p in procs:
+            lines.append(f"- {p.name} (PID {p.pid}): CPU {p.cpu_percent:.1f}, RAM {p.memory_mb:.0f}MB")
+        return JarvisResponse(content="\n".join(lines))
+
+    async def _cmd_install(self, args: list[str]) -> JarvisResponse:
+        """Install a package."""
+        if not args:
+            return JarvisResponse(content="Usage: install <package> [manager]\nManagers: pip, npm, winget, choco")
+        package = args[0]
+        manager = args[1] if len(args) > 1 else "pip"
+        result = await self._windows.install_package(package, manager)
+        return JarvisResponse(
+            content=f"**Installing {package} via {manager}**\n\n{result['message'][:1000]}",
+            action="package_installed",
+        )
+
+    async def _cmd_files(self, args: list[str]) -> JarvisResponse:
+        """List directory contents."""
+        path = args[0] if args else "."
+        result = await self._windows.run_command(
+            f"Get-ChildItem '{path}' | Select-Object Mode, LastWriteTime, Length, Name | Format-Table -AutoSize"
+        )
+        if result["success"]:
+            return JarvisResponse(content=f"**Contents of {path}:**\n```\n{result['stdout'][:2000]}\n```")
+        return JarvisResponse(content=f"Could not list directory: {result.get('error', 'Unknown error')}")
 
     async def _handle_voice(self, message: JarvisMessage) -> JarvisResponse:
         """Handle voice input (transcribed text)."""

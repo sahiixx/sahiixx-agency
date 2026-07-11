@@ -31,6 +31,8 @@ tmp/
 .pytest_cache/
 .pytest-tmp/
 .pytest_tmp/
+.pytest_tmp*/
+tmp_pytest/
 .coverage
 htmlcov/
 

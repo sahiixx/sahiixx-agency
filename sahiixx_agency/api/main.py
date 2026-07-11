@@ -12,7 +12,7 @@ from typing import Annotated, Any
 import httpx
 from fastapi import Body, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -66,13 +66,52 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+def _cors_origins() -> list[str]:
+    """Explicit CORS origins from env OPA_CORS_ORIGINS (comma-separated).
+
+    Defaults to the local dashboard dev servers. Wildcard CORS is no longer used
+    because it is incompatible with credentials and exposes the API to any origin.
+    """
+    raw = os.environ.get("OPA_CORS_ORIGINS", "").strip()
+    if raw:
+        return [o.strip() for o in raw.split(",") if o.strip()]
+    return ["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:3000"]
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Mutating paths that are invoked by external services and therefore cannot
+# present the X-OPA-API-Key header. These rely on their own signature/secret
+# verification and are exempt from the API-key gate.
+_WEBHOOK_PATHS = ("/webhooks/", "/telegram/webhook")
+
+
+@app.middleware("http")
+async def api_key_gate(request: Request, call_next: Any) -> Any:
+    """Gate mutating endpoints behind an X-OPA-API-Key header when OPA_API_KEY is set.
+
+    If OPA_API_KEY is unset or empty, the gate is disabled (local-dev back-compat).
+    When set, any non-safe method (POST/PUT/PATCH/DELETE) — except external webhook
+    paths — must send ``X-OPA-API-Key: <value>`` or the request is rejected with 401.
+    """
+    expected = os.environ.get("OPA_API_KEY", "").strip()
+    if expected and request.method not in ("GET", "HEAD", "OPTIONS"):
+        path = request.url.path
+        if not path.startswith(_WEBHOOK_PATHS):
+            supplied = request.headers.get("X-OPA-API-Key", "").strip()
+            if supplied != expected:
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Invalid or missing X-OPA-API-Key header."},
+                )
+    return await call_next(request)
 
 
 @app.middleware("http")
@@ -1084,7 +1123,7 @@ async def rate_marketplace_module(
 
 
 # Static dashboard files
-static_dir = os.path.join(os.path.dirname(__file__), "../../dashboard/dist")
+static_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../dashboard/dist"))
 if os.path.exists(static_dir):
     # Serve built JS/CSS assets at /dashboard/assets (matches Vite's relative output)
     app.mount("/dashboard/assets", StaticFiles(directory=os.path.join(static_dir, "assets")), name="dashboard-assets")

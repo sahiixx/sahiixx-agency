@@ -23,4 +23,19 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-ui': ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-tabs', '@radix-ui/react-select', '@radix-ui/react-popover', '@radix-ui/react-navigation-menu', '@radix-ui/react-tooltip', 'framer-motion'],
+          'vendor-charts': ['recharts', 'd3'],
+          'vendor-utils': ['fuse.js', 'zod', 'sonner', 'date-fns', 'react-hook-form', '@hookform/resolvers'],
+          'vendor-icons': ['lucide-react'],
+          'vendor-gsap': ['gsap', '@gsap/react', 'lenis'],
+        },
+      },
+    },
+  },
 });

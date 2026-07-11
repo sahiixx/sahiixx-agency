@@ -53,7 +53,11 @@ The core is `sahiixx_agency/core/engine.py` — `AgencyEngine` wires together ev
 
 **MCP server (`mcp_server/main.py`)**: FastMCP, 10 tools (`list_modules`, `dispatch_task`, `run_intel_scout`, `agency_stats`, `sync_registry`, `list_workflows`, `run_workflow`, `send_notification`, `get_metrics`, `get_health`). stdio by default; SSE binds `MCP_HOST:MCP_PORT` (8081) if `MCP_TRANSPORT=sse`. Distinct from `adapters/mcp/runner.py` (`McpAdapter`), which clones/runs *external* MCP repos.
 
+**Discovery (`sahiixx_agency/discovery/`)**: a separate package (not under `core/`). `pipeline.py` orchestrates repo discovery; `intent_signals.py` classifies free text into intent tiers — `SignalTier` (HOT/WARM/NURTURE) via `HOT_SIGNAL_PATTERNS`/`WARM_SIGNAL_PATTERNS`/`NURTURE_SIGNAL_PATTERNS` plus a `GCC_SIGNAL_PATTERNS` set — `detect_signals()` matches patterns, `_get_outreach_angle()` derives a hook, `aggregate_signals()` rolls up per entity. This is the in-engine counterpart to the lead-scoring logic in the `.claude/skills/outbound-prospecting` skill — keep the two aligned if you evolve signal definitions.
+
 **Dashboard (`dashboard/`)** is a top-level Vite + React 19 + TS + D3 SPA — **not** part of the Python package. Graph data comes from `GET /dashboard/graph-data` (FastAPI, iterates the registry) with a bundled static fallback `dashboard/public/graph_data.json` so it renders without the backend.
+
+**Project skills (`.claude/skills/`)**: two Claude Code skills with stdlib-only runnable scripts — `realestate-deal-analyzer` (Dubai/GCC investment metrics + investor brief; run `analyze_deal.py --json '{...}'`) and `outbound-prospecting` (lead scoring via saturating curve + outreach drafting; run `score_leads.py < leads.json`). On Windows, pass JSON via `--json` with backslash-escaped quotes, or `cmd /c "python script.py < file.json"` — PowerShell's native-command piping strips double-quotes and re-encodes stdin. `docs/skills/gcc-outbound-skill-builder.md` is a separate *prompt* for generating more skills with Fable/Opus.
 
 ## Deploy
 

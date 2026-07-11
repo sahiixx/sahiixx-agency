@@ -51,6 +51,13 @@ class ApprovalManager:
             return None
         return self.approve(request_id, by)
 
+    def reject_by_task(self, task_id: str, by: str) -> ApprovalRequest | None:
+        """Reject the pending approval (if any) associated with ``task_id``."""
+        request_id = self._by_task.get(task_id)
+        if request_id is None:
+            return None
+        return self.reject(request_id, by)
+
     def is_approved(self, task_id: str) -> bool:
         request_id = self._by_task.get(task_id)
         if not request_id:

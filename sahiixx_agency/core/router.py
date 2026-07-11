@@ -167,7 +167,7 @@ class TaskRouter:
             score = self._score_module(intent, mod)
             scored.append((score, mod))
         scored.sort(key=lambda x: x[0], reverse=True)
-        return [mod for _, mod in scored if _ > 0]
+        return [mod for score, mod in scored if score > 0]
 
     def score_candidates(self, task: AgencyTask) -> list[Candidate]:
         """Score modules for ``task``, filtering by project enablement.

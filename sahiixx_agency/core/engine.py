@@ -332,10 +332,7 @@ class AgencyEngine:
 
     async def reject_task(self, task_id: str, by: str = "operator") -> ApprovalRequest | None:
         """Reject a pending risky task by task id."""
-        request_id = self.approval_manager._by_task.get(task_id)
-        if request_id is None:
-            return None
-        req = self.approval_manager.reject(request_id, by)
+        req = self.approval_manager.reject_by_task(task_id, by)
         if req is not None:
             self.audit.log("task.rejected", by, task_id, {"approval_id": req.id})
             await self.task_logger.info(
@@ -840,6 +837,7 @@ class AgencyEngine:
             return {"note": f"No modules in category {category.value}"}
         # Pick the one with the most stars
         best = max(modules, key=lambda m: m.stars)
+        task.module_id = best.id  # record which module actually ran (was unset; caused "No module matched" misreporting)
         if not await self._run_dependency_scan_gate(best, task):
             return {"dependency_scan": task.result.get("dependency_scan") if task.result else None}
         payload = task.payload

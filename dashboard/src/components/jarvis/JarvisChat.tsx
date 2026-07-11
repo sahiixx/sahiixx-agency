@@ -4,7 +4,8 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, Bot, User, Zap } from 'lucide-react';
+import { Send, Bot, User, Zap, Activity } from 'lucide-react';
+import { VoiceControl } from './VoiceControl';
 
 interface Message {
   id: string;
@@ -27,7 +28,7 @@ export function JarvisChat() {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 'welcome',
-      content: 'Hello! I\'m Jarvis 100x — your AI assistant for OPA.\n\nType a command or ask me anything. Try `help` to see what I can do.',
+      content: 'Hello! I\'m Jarvis 100x — your AI assistant for OPA.\n\nType a command, click a quick action, or use voice to speak.\nTry `help` to see what I can do.',
       sender: 'jarvis',
       timestamp: new Date(),
     },
@@ -35,6 +36,7 @@ export function JarvisChat() {
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [connected, setConnected] = useState(false);
+  const [lastResponse, setLastResponse] = useState<string>('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -53,13 +55,15 @@ export function JarvisChat() {
         ws.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
+            const response = data.content;
             setMessages(prev => [...prev, {
               id: Date.now().toString(),
-              content: data.content,
+              content: response,
               sender: 'jarvis',
               timestamp: new Date(),
               action: data.action,
             }]);
+            setLastResponse(response);
             setIsTyping(false);
           } catch {
             // Ignore parse errors
@@ -113,13 +117,15 @@ export function JarvisChat() {
 
         if (resp.ok) {
           const data = await resp.json();
+          const response = data.content;
           setMessages(prev => [...prev, {
             id: Date.now().toString(),
-            content: data.content,
+            content: response,
             sender: 'jarvis',
             timestamp: new Date(),
             action: data.action,
           }]);
+          setLastResponse(response);
         }
       } catch {
         setMessages(prev => [...prev, {
@@ -193,6 +199,13 @@ export function JarvisChat() {
           </div>
         </ScrollArea>
 
+        {/* Voice Control */}
+        <VoiceControl
+          onCommand={sendMessage}
+          lastResponse={lastResponse}
+          autoSpeak={false}
+        />
+
         {/* Quick Commands */}
         <div className="flex flex-wrap gap-1">
           {QUICK_COMMANDS.map((cmd) => (
@@ -227,6 +240,3 @@ export function JarvisChat() {
     </Card>
   );
 }
-
-// Import for typing indicator
-import { Activity } from 'lucide-react';

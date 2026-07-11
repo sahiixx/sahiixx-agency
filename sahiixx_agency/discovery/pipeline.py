@@ -9,6 +9,12 @@ from pathlib import Path
 
 from sahiixx_agency.core.models import DiscoveryResult, RepoCategory, RepoNode, RiskLevel
 from sahiixx_agency.core.registry import RepoRegistry
+from sahiixx_agency.discovery.intent_signals import (
+    IntentSignal,
+    SignalTier,
+    aggregate_signals,
+    detect_signals,
+)
 from sahiixx_agency.discovery.sources import fetch_all_sources
 
 CATEGORY_KEYWORDS: dict[RepoCategory, list[str]] = {
@@ -62,13 +68,28 @@ def classify(result: DiscoveryResult) -> DiscoveryResult:
     return result.model_copy(update={"category": best_category, "risk_level": risk})
 
 
-def score(result: DiscoveryResult) -> float:
-    """Score discovery result relevance; higher is better."""
+def score(result: DiscoveryResult, intent_signals: list[IntentSignal] | None = None) -> float:
+    """Score discovery result relevance; higher is better.
+
+    Incorporates intent signals when available — hot signals boost score
+    significantly, warm signals provide moderate boost.
+    """
     s = float(result.stars)
     if result.category != RepoCategory.UNCATEGORIZED:
         s += 100.0
     if result.language in ("Python", "TypeScript", "JavaScript"):
         s += 20.0
+
+    # Intent signal boost (Gojiberry-style)
+    if intent_signals:
+        tier_boost = {
+            SignalTier.HOT: 500.0,
+            SignalTier.WARM: 200.0,
+            SignalTier.NURTURE: 50.0,
+        }
+        for signal in intent_signals:
+            s += tier_boost.get(signal.tier, 0.0) * signal.confidence
+
     return s
 
 
@@ -105,19 +126,33 @@ class DiscoveryPipeline:
         self.discovery_dir.mkdir(parents=True, exist_ok=True)
 
     async def run(self) -> list[RepoNode]:
-        """Fetch, dedupe, filter, classify, optionally clone, and register trending repos."""
+        """Fetch, dedupe, filter, classify, detect intent signals, and register trending repos."""
         raw = await fetch_all_sources()
         results = [DiscoveryResult.model_validate(r) for r in raw]
         results = deduplicate(results)
         results = [r for r in results if r.stars >= self.min_stars or r.source in ("hackernews", "reddit")]
         results = [classify(r) for r in results]
-        results.sort(key=score, reverse=True)
-        nodes = [_discovery_result_to_node(r) for r in results]
+
+        # Detect intent signals for each result
+        results_with_signals: list[tuple[DiscoveryResult, list[IntentSignal]]] = []
+        for r in results:
+            text = f"{r.full_name} {r.description}"
+            signals = detect_signals(text, source=r.source, include_gcc=True)
+            results_with_signals.append((r, signals))
+
+        # Sort by score (now incorporating intent signals)
+        results_with_signals.sort(
+            key=lambda x: score(x[0], x[1]),
+            reverse=True,
+        )
+
+        nodes = [_discovery_result_to_node(r) for r, _ in results_with_signals]
         if self.auto_clone:
             for node in nodes[:20]:
                 await self._clone(node)
         self._merge_into_registry(nodes)
         self._save_snapshot(results)
+        self._save_intent_signals(results_with_signals)
         return nodes
 
     def _merge_into_registry(self, nodes: list[RepoNode]) -> None:
@@ -150,3 +185,23 @@ class DiscoveryPipeline:
         with open(path, "w", encoding="utf-8") as f:
             for r in results:
                 f.write(r.model_dump_json() + "\n")
+
+    def _save_intent_signals(
+        self,
+        results_with_signals: list[tuple[DiscoveryResult, list[IntentSignal]]],
+    ) -> None:
+        """Save intent signals snapshot for downstream consumption."""
+        hot_signals = [
+            (r, signals)
+            for r, signals in results_with_signals
+            if any(s.tier == SignalTier.HOT for s in signals)
+        ]
+        if not hot_signals:
+            return
+
+        date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        path = self.discovery_dir / f"{date_str}-intent-signals.jsonl"
+        with open(path, "w", encoding="utf-8") as f:
+            for r, signals in hot_signals:
+                result = aggregate_signals(r.full_name, signals)
+                f.write(result.model_dump_json() + "\n")

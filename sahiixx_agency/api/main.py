@@ -86,6 +86,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Jarvis 100x — AI assistant endpoints
+from sahiixx_agency.jarvis.api import router as jarvis_router
+
+app.include_router(jarvis_router)
+
 
 # Mutating paths that are invoked by external services and therefore cannot
 # present the X-OPA-API-Key header. These rely on their own signature/secret
@@ -334,6 +339,36 @@ async def get_task_logs(
     """
     entries = await engine.task_logger.read(task_id)
     return [TaskLogEntry.model_validate(e).model_dump(mode="json") for e in entries]
+
+
+@app.get("/tasks/{task_id}/stream")
+async def stream_task(
+    task_id: str,
+    engine: Annotated[AgencyEngine, Depends(get_engine)],
+) -> StreamingResponse:
+    """SSE stream of task status updates until terminal state."""
+    terminal = {"completed", "failed", "cancelled"}
+
+    async def event_generator() -> AsyncGenerator[str, None]:
+        while True:
+            task = engine.get_task(task_id)
+            if task is None:
+                yield f"data: {json.dumps({'error': 'Task not found'})}\n\n"
+                return
+            payload = task.model_dump(mode="json")
+            yield f"data: {json.dumps(payload)}\n\n"
+            if payload.get("status") in terminal:
+                return
+            await asyncio.sleep(0.1)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 @app.post("/tasks/{task_id}/approve")

@@ -72,3 +72,11 @@ test-results/
 # Claude Project metadata
 .claude/
 CLAUDE.md
+
+# JARVIS sub-projects (separate apps with own node_modules/builds)
+jarvis-electron/
+jarvis-native/
+jarvis-overlay/
+
+# JARVIS screenshots
+jarvis_*.png

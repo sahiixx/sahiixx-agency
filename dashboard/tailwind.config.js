@@ -83,6 +83,12 @@ module.exports = {
         "layer-application": "#22c55e",
         "layer-data": "#10b981",
         "layer-interface": "#f59e0b",
+        // Jarvis OS v3.0 tokens
+        "jarvis-red": "#FF1A1A",
+        "jarvis-cyan": "#00F0FF",
+        "jarvis-green": "#00FF66",
+        "jarvis-amber": "#EAB308",
+        "jarvis-void": "#0A0A0A",
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
@@ -158,6 +164,24 @@ module.exports = {
           "0%, 100%": { transform: "translateY(0px)" },
           "50%": { transform: "translateY(-4px)" },
         },
+        "live-pulse": {
+          "0%, 100%": { opacity: "1", transform: "scale(1)" },
+          "50%": { opacity: "0.5", transform: "scale(1.2)" },
+        },
+        "border-glow": {
+          "0%, 100%": { borderColor: "rgba(255,255,255,0.06)" },
+          "50%": { borderColor: "rgba(0,240,255,0.3)" },
+        },
+        "shimmer": {
+          "0%": { backgroundPosition: "-200% 0" },
+          "100%": { backgroundPosition: "200% 0" },
+        },
+        "chromatic-shift": {
+          "0%, 100%": { textShadow: "0 0 2px rgba(255,26,26,0.4)" },
+          "25%": { textShadow: "2px 0 rgba(255,26,26,0.8), -2px 0 rgba(0,240,255,0.8)" },
+          "50%": { textShadow: "0 0 2px rgba(255,26,26,0.4)" },
+          "75%": { textShadow: "-2px 0 rgba(255,26,26,0.8), 2px 0 rgba(0,240,255,0.8)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -170,6 +194,10 @@ module.exports = {
         "glow-pulse": "glow-pulse 2000ms ease-in-out infinite",
         "connection-flow": "connection-flow 3000ms linear infinite",
         "node-float": "node-float 8000ms ease-in-out infinite",
+        "live-pulse": "live-pulse 2s ease-in-out infinite",
+        "border-glow": "border-glow 2s ease-in-out infinite",
+        "shimmer": "shimmer 1.5s linear infinite",
+        "chromatic-shift": "chromatic-shift 0.3s ease-in-out",
       },
     },
   },

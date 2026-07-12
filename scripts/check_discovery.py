@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import asyncio
 
-from sahiixx_agency.discovery.intent_signals import detect_signals, aggregate_signals, SignalTier
+from sahiixx_agency.discovery.intent_signals import aggregate_signals, detect_signals
 from sahiixx_agency.discovery.sources import (
     fetch_github_trending,
     fetch_github_velocity,

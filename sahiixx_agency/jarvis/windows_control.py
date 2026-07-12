@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import asyncio
-import os
-import subprocess
+import contextlib
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -104,10 +104,10 @@ class WindowsController:
                 "error": f"Command timed out after {timeout}s",
                 "command": command,
             }
-        except Exception as e:
+        except Exception as exc:
             return {
                 "success": False,
-                "error": str(e),
+                "error": str(exc),
                 "command": command,
             }
 
@@ -181,10 +181,8 @@ class WindowsController:
             "(Get-Date) - (Get-CimInstance Win32_OperatingSystem).LastBootUpTime | Select-Object -ExpandProperty TotalSeconds"
         )
         if result["success"]:
-            try:
+            with contextlib.suppress(ValueError):
                 info.uptime_seconds = int(float(result["stdout"].strip()))
-            except ValueError:
-                pass
 
         return info
 
@@ -366,11 +364,10 @@ class WindowsController:
 
     async def click_mouse(self, button: str = "left") -> dict[str, Any]:
         """Click mouse button."""
-        btn = "LEFT" if button.lower() == "left" else "RIGHT"
         result = await self.run_command(
-            f"Add-Type -AssemblyName System.Windows.Forms; "
-            f"$mouse = New-Object System.Windows.Forms.MouseSimulator; "
-            f"[System.Windows.Forms.Cursor]::Position = [System.Windows.Forms.Cursor]::Position"
+            "Add-Type -AssemblyName System.Windows.Forms; "
+            "$mouse = New-Object System.Windows.Forms.MouseSimulator; "
+            "[System.Windows.Forms.Cursor]::Position = [System.Windows.Forms.Cursor]::Position"
         )
         return {"success": result["success"], "button": button}
 
@@ -457,9 +454,9 @@ class WindowsController:
     ) -> list[dict[str, Any]]:
         """Monitor a directory for changes."""
         events = []
-        start_time = datetime.now()
+        start_time = datetime.now(timezone.utc)
 
-        while (datetime.now() - start_time).total_seconds() < duration_seconds:
+        while (datetime.now(timezone.utc) - start_time).total_seconds() < duration_seconds:
             result = await self.run_command(
                 f"Get-ChildItem '{path}' | Select-Object Name, LastWriteTime, Length | ConvertTo-Json"
             )

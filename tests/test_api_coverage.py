@@ -21,7 +21,7 @@ def client(tmp_path, monkeypatch):
     engine = AgencyEngine(config)
 
     async def fake_discover(username: str):
-        from sahiixx_agency.core.models import RepoNode, RepoCategory
+        from sahiixx_agency.core.models import RepoCategory, RepoNode
 
         module = RepoNode(
             id="echo-module",

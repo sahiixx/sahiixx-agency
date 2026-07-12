@@ -3,16 +3,16 @@
 from __future__ import annotations
 
 import asyncio
-import os
+import contextlib
 from datetime import datetime, timezone
 from typing import Any
 
 from .models import (
     JarvisConfig,
     JarvisMessage,
+    JarvisMode,
     JarvisResponse,
     JarvisState,
-    JarvisMode,
     MessageType,
     MonitorEvent,
 )
@@ -72,10 +72,8 @@ class JarvisAgent:
         """Stop the Jarvis agent and clean up."""
         if self._monitor_task:
             self._monitor_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._monitor_task
-            except asyncio.CancelledError:
-                pass
 
         self.state.mode = JarvisMode.IDLE
         await self._emit_event("system", "info", "Jarvis Offline", "Session ended")
@@ -118,11 +116,11 @@ class JarvisAgent:
         content = message.content.lower().strip()
 
         # Command detection: /command, "opa command", or bare command words
-        KNOWN_COMMANDS = {"status", "stats", "health", "registry", "tasks", "dispatch",
+        known_commands = {"status", "stats", "health", "registry", "tasks", "dispatch",
                           "sync", "modules", "workflows", "clear", "context", "help", "?"}
         first_word = content.split()[0] if content.split() else ""
 
-        if content.startswith("/") or content.startswith("opa ") or first_word in KNOWN_COMMANDS:
+        if content.startswith("/") or content.startswith("opa ") or first_word in known_commands:
             return await self._handle_command(message)
 
         # System queries
@@ -579,7 +577,7 @@ class JarvisAgent:
         if not args:
             return JarvisResponse(content="Usage: key <key>\nExamples: key Enter, key ^c, key {TAB}")
         key = args[0]
-        result = await self._windows.press_key(key)
+        await self._windows.press_key(key)
         return JarvisResponse(content=f"Pressed: {key}")
 
     async def _cmd_mouse(self, args: list[str]) -> JarvisResponse:
@@ -588,7 +586,7 @@ class JarvisAgent:
             return JarvisResponse(content="Usage: mouse <x> <y>")
         try:
             x, y = int(args[0]), int(args[1])
-            result = await self._windows.move_mouse(x, y)
+            await self._windows.move_mouse(x, y)
             return JarvisResponse(content=f"Mouse moved to ({x}, {y})")
         except ValueError:
             return JarvisResponse(content="Invalid coordinates. Usage: mouse <x> <y>")

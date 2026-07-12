@@ -6,6 +6,7 @@ import asyncio
 import json
 import os
 import platform
+import subprocess
 import time
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -31,6 +32,7 @@ from sahiixx_agency.core.models import (
     TaskStatus,
     WorkflowDefinition,
 )
+from sahiixx_agency.jarvis.api import router as jarvis_router
 
 _engine: AgencyEngine | None = None
 
@@ -90,8 +92,6 @@ app.add_middleware(
 )
 
 # Jarvis 100x — AI assistant endpoints
-from sahiixx_agency.jarvis.api import router as jarvis_router
-
 app.include_router(jarvis_router)
 
 
@@ -1162,9 +1162,6 @@ async def rate_marketplace_module(
 
 # ---------- Device Control (Windows System Bridge) ----------
 
-import subprocess
-import platform
-
 
 class DeviceControlRequest(BaseModel):
     action: str
@@ -1439,8 +1436,8 @@ async def device_action(request: DeviceControlRequest) -> dict[str, Any]:
             case "mute":
                 toggle = params.get("toggle", True)
                 stdout, stderr, rc = _run_ps(
-                    f'$wsh = New-Object -ComObject WScript.Shell; '
-                    f'$wsh.SendKeys([char]173)'
+                    '$wsh = New-Object -ComObject WScript.Shell; '
+                    '$wsh.SendKeys([char]173)'
                 )
                 result["success"] = rc == 0
                 result["toggled"] = toggle

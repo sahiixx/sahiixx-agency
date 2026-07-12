@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import os
 from typing import Any
 
@@ -11,7 +10,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 
 from .agent import JarvisAgent
-from .models import JarvisConfig, JarvisMessage, MessageType
+from .models import JarvisMessage, MessageType
 
 router = APIRouter(prefix="/jarvis", tags=["jarvis"])
 

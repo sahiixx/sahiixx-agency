@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import io
 import os
+import subprocess
+import tempfile
 from typing import Any
 
 from .models import JarvisConfig
@@ -48,11 +51,8 @@ class VoicePipeline:
                 )
                 response.raise_for_status()
                 return response.json().get("text", "")
-
-        except ImportError:
-            raise ImportError("httpx required for voice pipeline: pip install httpx")
-        except Exception as e:
-            raise RuntimeError(f"Transcription failed: {e}")
+        except ImportError as exc:
+            raise ImportError("httpx required for voice pipeline: pip install httpx") from exc
 
     async def synthesize(self, text: str, voice: str | None = None) -> bytes:
         """Synthesize text to speech.
@@ -97,9 +97,8 @@ class VoicePipeline:
                 )
                 response.raise_for_status()
                 return response.content
-
-        except Exception as e:
-            raise RuntimeError(f"OpenAI TTS failed: {e}")
+        except Exception as exc:
+            raise RuntimeError(f"OpenAI TTS failed: {exc}") from exc
 
     async def _elevenlabs_tts(self, text: str, voice_id: str) -> bytes:
         """ElevenLabs TTS API with v2 model for high quality."""
@@ -130,9 +129,8 @@ class VoicePipeline:
                 )
                 response.raise_for_status()
                 return response.content
-
-        except Exception as e:
-            raise RuntimeError(f"ElevenLabs TTS failed: {e}")
+        except Exception as exc:
+            raise RuntimeError(f"ElevenLabs TTS failed: {exc}") from exc
 
     async def speak(self, text: str) -> None:
         """Synthesize and play audio (requires pygame or similar).
@@ -158,9 +156,6 @@ class VoicePipeline:
                         await asyncio.sleep(0.1)
                 except ImportError:
                     # Fallback: save to temp file
-                    import tempfile
-                    import subprocess
-
                     with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
                         f.write(audio)
                         temp_path = f.name
@@ -170,10 +165,9 @@ class VoicePipeline:
                         subprocess.run(["start", temp_path], shell=True, check=True)
                     except Exception:
                         print(f"[Audio saved to {temp_path}]")
-        except Exception as e:
-            print(f"Voice playback failed: {e}")
+        except Exception as exc:
+            print(f"Voice playback failed: {exc}")
             print(text)
 
 
 # Import asyncio for the speak method
-import asyncio  # noqa: E402

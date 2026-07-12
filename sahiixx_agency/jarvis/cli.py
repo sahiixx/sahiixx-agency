@@ -3,14 +3,12 @@
 from __future__ import annotations
 
 import asyncio
-import sys
 from typing import TYPE_CHECKING
 
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.prompt import Prompt
-from rich.table import Table
 from typer import Typer
 
 if TYPE_CHECKING:
@@ -35,7 +33,7 @@ BANNER = """
 """
 
 
-async def _run_interactive(agent: "JarvisAgent") -> None:
+async def _run_interactive(agent: JarvisAgent) -> None:
     """Run interactive chat loop."""
     from .models import JarvisMessage, MessageType
 

@@ -1182,18 +1182,7 @@ export function DeviceControlPanel() {
       {/* Voice Tab */}
       {activeTab === 'voice' && (
         <div className="jarvis-card p-4">
-          <VoiceCommandPanel
-            onCommand={(command) => {
-              console.log('Voice command:', command)
-            }}
-            volume={volume}
-            setVolume={setVolume}
-            runAction={runAction}
-            handleShutdown={handleShutdown}
-            handleRestart={handleRestart}
-            addToast={addToast}
-            actionLoading={actionLoading}
-          />
+          <VoiceCommandPanel />
         </div>
       )}
 

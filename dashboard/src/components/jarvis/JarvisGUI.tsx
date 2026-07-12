@@ -220,7 +220,7 @@ export function JarvisGUI() {
               </ScrollArea>
 
               {/* Input */}
-              <div className="flex gap-2">
+              <div className="flex gap-2 mt-2">
                 <Input
                   value={input}
                   onChange={(e) => setInput(e.target.value)}

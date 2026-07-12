@@ -1067,6 +1067,8 @@ async def graph_data(engine: Annotated[AgencyEngine, Depends(get_engine)]) -> di
             "totalStars": sum(m.stars for m in engine.registry.modules),
             "totalForks": sum(m.forks for m in engine.registry.modules),
             "totalLanguages": len(layers),
+            "totalConnections": len(links),
+            "trendingCount": sum(1 for m in engine.registry.modules if getattr(m, "is_trending", False)),
         },
     }
 

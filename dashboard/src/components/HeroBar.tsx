@@ -108,7 +108,7 @@ export default function HeroBar({
               setOpen(true)
             }}
             onFocus={() => setOpen(true)}
-            placeholder="Search 113 repositories by name, category, language..."
+            placeholder="Search repositories by name, category, language..."
             className="bg-transparent border-none outline-none text-[14px] text-text-primary placeholder:text-text-muted w-full"
           />
           {query && (

@@ -5,6 +5,7 @@ import { Sun, Moon, Menu, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useBrand } from '@/components/BrandProvider'
+import { loadGraphData } from '@/lib/graph-data'
 
 function LogoMark({ className }: { className?: string }) {
   return (
@@ -52,15 +53,14 @@ export default function Navbar() {
   const [scrolled, setScrolled] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [stats, setStats] = useState({ repos: 0, connections: 0, trending: 0 })
 
   useEffect(() => {
-    // Defer mount state to avoid synchronous setState in render cycle
     const timer = setTimeout(() => setMounted(true), 0)
     return () => clearTimeout(timer)
   }, [])
 
   useEffect(() => {
-    // Defer mobile menu close to avoid synchronous setState during render
     const timer = setTimeout(() => setMobileOpen(false), 0)
     return () => clearTimeout(timer)
   }, [location.pathname])
@@ -69,6 +69,25 @@ export default function Navbar() {
     const handleScroll = () => setScrolled(window.scrollY > 100)
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    loadGraphData()
+      .then((data) => {
+        if (cancelled) return
+        setStats({
+          repos: data.stats?.totalRepos ?? data.nodes.length,
+          connections: data.stats?.totalConnections ?? data.links.length,
+          trending: data.stats?.trendingCount ?? 0,
+        })
+      })
+      .catch(() => {
+        // leave defaults if API is unreachable
+      })
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const isActive = (path: string) => {
@@ -122,7 +141,7 @@ export default function Navbar() {
 
         <div className="flex items-center gap-2">
           <div className="font-mono text-[11px] text-text-muted hidden lg:block mr-2">
-            113 repos · 130 connections · 49 trending
+            {stats.repos > 0 ? `${stats.repos} repos · ${stats.connections} connections · ${stats.trending} trending` : '113 repos · 130 connections · 49 trending'}
           </div>
           {mounted && (
             <Button

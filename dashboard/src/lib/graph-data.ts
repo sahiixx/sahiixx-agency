@@ -24,7 +24,12 @@ export interface GraphData {
   categories: string[]
   layers: string[]
   eras: string[]
-  stats: Record<string, unknown>
+  stats: {
+    totalRepos: number
+    totalConnections: number
+    trendingCount: number
+    [key: string]: unknown
+  }
 }
 
 export const CATEGORY_COLORS: Record<string, { fill: string; glow: string }> = {

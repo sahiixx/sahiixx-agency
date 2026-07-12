@@ -32,15 +32,15 @@ EXPECTED_ROUTES = {
         "category": "security",
     },
     "apply to job at https://example.com/job": {
-        "module_id": "career-ops",
+        "module_id": "career_ops",
         "category": "agent_framework",
     },
     "screen resumes for python backend": {
-        "module_id": "hiring-agent",
+        "module_id": "hiring_agent",
         "category": "agent_framework",
     },
     "spin up a stateful agent with long-term memory": {
-        "module_id": "letta-code",
+        "module_id": "letta_code",
         "category": "agent_framework",
     },
 }
@@ -76,6 +76,36 @@ async def run_smoke_tests() -> dict:
                         "source": "mocked_mcp",
                         "module": module.name,
                         "target": payload.get("target"),
+                    })
+                ),
+            ),
+            patch(
+                "sahiixx_agency.adapters.career.career_ops_adapter.CareerOpsAdapter.run",
+                new=lambda self, module, payload: asyncio.ensure_future(
+                    asyncio.sleep(0, result={
+                        "status": "success",
+                        "source": "mocked_career",
+                        "module": module.name,
+                    })
+                ),
+            ),
+            patch(
+                "sahiixx_agency.adapters.hiring.hiring_agent_adapter.HiringAgentAdapter.run",
+                new=lambda self, module, payload: asyncio.ensure_future(
+                    asyncio.sleep(0, result={
+                        "status": "success",
+                        "source": "mocked_hiring",
+                        "module": module.name,
+                    })
+                ),
+            ),
+            patch(
+                "sahiixx_agency.adapters.agent_framework.letta_code_adapter.LettaCodeAdapter.run",
+                new=lambda self, module, payload: asyncio.ensure_future(
+                    asyncio.sleep(0, result={
+                        "status": "success",
+                        "source": "mocked_letta",
+                        "module": module.name,
                     })
                 ),
             ),

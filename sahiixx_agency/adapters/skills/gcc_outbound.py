@@ -27,7 +27,8 @@ SKILL_DIR = Path(__file__).parent.parent.parent.parent / "skills" / "gcc_outboun
 class GccOutboundSkillAdapter(BaseAdapter):
     """Adapter for the GCC Outbound Skill Library."""
 
-    def __init__(self, module: Any, llm_manager: Any | None = None) -> None:
+    def __init__(self, module: Any | None = None, llm_manager: Any | None = None) -> None:
+        super().__init__()
         self.module = module
         self.llm_manager = llm_manager
         self._jinja = Environment(loader=BaseLoader(), autoescape=False)
@@ -42,6 +43,16 @@ class GccOutboundSkillAdapter(BaseAdapter):
             raise FileNotFoundError(f"Skill manifest not found: {manifest_path}")
         template = self._jinja.from_string(manifest_path.read_text(encoding="utf-8"))
         return template.render(**context)
+
+    def list_skills(self) -> list[str]:
+        """Return the names of all available GCC outbound skills."""
+        if not SKILL_DIR.exists():
+            return []
+        return [p.name for p in SKILL_DIR.iterdir() if p.is_dir() and (p / "manifest.md").exists()]
+
+    def load_manifest(self, skill_name: str, context: dict[str, Any] | None = None) -> str:
+        """Render a skill manifest with the supplied context."""
+        return self._render_manifest(skill_name, context or {})
 
     def _extract_prompt(self, manifest: str) -> str:
         # Naive markdown extraction: find the ``` prompt block.

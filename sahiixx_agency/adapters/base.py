@@ -10,7 +10,11 @@ from sahiixx_agency.core.security import AuditLogger, NetworkPolicy
 
 
 class BaseAdapter:
-    """Base adapter that clones and runs repos."""
+    """Base adapter that clones and runs repos.
+
+    Subclasses may implement `execute(payload)` for in-process skill adapters
+    or override `run()` for repo-based adapters.
+    """
 
     def __init__(
         self,
@@ -23,6 +27,10 @@ class BaseAdapter:
             network_policy=network_policy,
             audit_logger=audit_logger,
         )
+
+    async def execute(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """In-process execution entrypoint."""
+        raise NotImplementedError("execute() not implemented")
 
     async def run(self, module: RepoNode, payload: dict[str, Any]) -> dict[str, Any]:
         return await self.runner.run(

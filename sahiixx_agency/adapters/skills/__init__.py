@@ -7,7 +7,7 @@ from sahiixx_agency.adapters.skills.gcc_outbound import GccOutboundSkillAdapter
 class SkillsAdapter(BaseAdapter):
     """Router adapter that selects a skill sub-adapter by intent/skill name."""
 
-    def __init__(self, module: object) -> None:
+    def __init__(self, module: object | None = None) -> None:
         self.module = module
         self._gcc = GccOutboundSkillAdapter(module)
 

@@ -42,6 +42,39 @@ async def _health_check(_request: Request) -> JSONResponse:
 
 
 @mcp.tool()
+async def list_gcc_outbound_skills() -> str:
+    """List available GCC Outbound skills."""
+    from sahiixx_agency.adapters.skills.gcc_outbound import GccOutboundSkillAdapter
+
+    adapter = GccOutboundSkillAdapter()
+    return json.dumps({"skills": adapter.list_skills()}, indent=2)
+
+
+@mcp.tool()
+async def run_gcc_outbound_skill(skill: str, context: str = "{}") -> str:
+    """Run a GCC Outbound skill by name with a JSON context."""
+
+    engine = _get_engine()
+    await engine.start_worker()
+    data: dict[str, Any] = json.loads(context)
+    task = await engine.dispatch(
+        f"run gcc {skill} skill",
+        {"skill": skill, "context": data},
+    )
+    return json.dumps(
+        {
+            "task_id": task.id,
+            "status": task.status.value,
+            "module": task.module_id,
+            "category": task.category.value if task.category else None,
+            "result": task.result,
+            "error": task.error,
+        },
+        indent=2,
+    )
+
+
+@mcp.tool()
 async def list_modules(category: str | None = None) -> str:
     """List agency modules, optionally filtered by category."""
     engine = _get_engine()

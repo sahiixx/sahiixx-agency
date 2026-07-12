@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from sahiixx_agency.adapters.base import BaseAdapter
+
 from .approval import ApprovalManager
 from .bus import MessageBus
 from .chat import ChatManager
@@ -23,7 +24,7 @@ from .marketplace import MarketplaceManager
 from .memory import AgencyMemory
 from .metrics import MetricsCollector
 from .models import (
-
+    AgencyConfig,
     AgencyTask,
     ApprovalRequest,
     BusMessage,
@@ -764,10 +765,13 @@ class AgencyEngine:
                         factory = _SPECIALIZED_ADAPTERS.get(mid)
                         if factory is not None:
                             adapter, payload = factory(self.config, self.network_policy, self.audit, task)
-                            if type(adapter).execute is not BaseAdapter.execute:
+                            if hasattr(type(adapter), "execute") and type(adapter).execute is not BaseAdapter.execute:
                                 run_result = await adapter.execute(payload)
-                            else:
+                            elif hasattr(adapter, "run"):
                                 run_result = await adapter.run(mod, payload)
+                            else:
+                                run_result = {}
+
                             task.result = {
                                 "module": mod.name if mod else task.module_id,
                                 "category": mod.category.value if mod else (task.category.value if task.category else None),

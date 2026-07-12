@@ -768,9 +768,9 @@ export function DeviceControlPanel() {
                 name: p.name,
                 cpu_percent: p.cpu_percent,
                 memory_mb: p.memory_mb,
-                parent_pid: null,
+                status: p.status,
+                children: [],
               }))}
-              loading={procLoading}
             />
           </div>
 

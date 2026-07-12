@@ -1,15 +1,14 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Badge } from '@/components/ui/badge';
-import { CommandPalette } from './CommandPalette';
-import { SystemPanel } from './SystemPanel';
-import { ProcessManager } from './ProcessManager';
-import { AppLauncher } from './AppLauncher';
-import { ClipboardManager } from './ClipboardManager';
-import { CommandHistory } from './CommandHistory';
-import { ResultsPanel } from './ResultsPanel';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Progress } from '@/components/ui/progress';
 import {
-  Monitor, Terminal, AppWindow, Activity
+  Monitor, Terminal, AppWindow, Activity, Cpu, HardDrive, MemoryStick,
+  Battery, Clock, Send, CheckCircle, XCircle,
+  Keyboard, Clipboard, FolderOpen, Play, Square, RefreshCw
 } from 'lucide-react';
 
 interface CommandResult {
@@ -21,47 +20,61 @@ interface CommandResult {
   duration: number;
 }
 
-interface Process {
-  pid: number;
-  name: string;
-  cpu_percent: number;
-  memory_mb: number;
-  status: string;
-}
-
-interface SystemInfo {
-  hostname: string;
-  username: string;
-  os_version: string;
-  cpu_count: number;
-  memory_total_gb: number;
-  memory_available_gb: number;
-  disk_usage: Record<string, { used: number; free: number }>;
-  battery: { charge_percent: number; charging: boolean } | null;
-  uptime_seconds: number;
-}
-
-interface Window {
-  name: string;
-  title: string;
-}
+// Command categories with icons
+const COMMANDS = [
+  { name: 'system', label: 'System Info', icon: Monitor, category: 'System', description: 'CPU, memory, disk, battery' },
+  { name: 'status', label: 'Status', icon: Activity, category: 'System', description: 'Jarvis status' },
+  { name: 'health', label: 'Health', icon: Activity, category: 'System', description: 'System health checks' },
+  { name: 'help', label: 'Help', icon: Keyboard, category: 'System', description: 'Show all commands' },
+  { name: 'processes', label: 'Processes', icon: Cpu, category: 'System', description: 'List running processes' },
+  { name: 'windows', label: 'Windows', icon: AppWindow, category: 'Apps', description: 'List open windows' },
+  { name: 'open', label: 'Open App', icon: Play, category: 'Apps', description: 'Open an application', needsArg: true },
+  { name: 'close', label: 'Close App', icon: Square, category: 'Apps', description: 'Close an application', needsArg: true },
+  { name: 'clipboard', label: 'Clipboard', icon: Clipboard, category: 'Files', description: 'Show clipboard' },
+  { name: 'screenshot', label: 'Screenshot', icon: Monitor, category: 'Files', description: 'Take screenshot' },
+  { name: 'files', label: 'Files', icon: FolderOpen, category: 'Files', description: 'List directory', needsArg: true },
+  { name: 'run', label: 'Run Command', icon: Terminal, category: 'System', description: 'Execute shell command', needsArg: true },
+  { name: 'battery', label: 'Battery', icon: Battery, category: 'System', description: 'Battery status' },
+  { name: 'network', label: 'Network', icon: Activity, category: 'System', description: 'Network info' },
+];
 
 export function JarvisGUI() {
-  // State
-  const [commandHistory, setCommandHistory] = useState<CommandResult[]>([]);
-  const [lastResult, setLastResult] = useState<CommandResult | null>(null);
-  const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
-  const [processes, setProcesses] = useState<Process[]>([]);
-  const [openWindows, setOpenWindows] = useState<Window[]>([]);
-  const [clipboardContent, setClipboardContent] = useState('');
-  const [clipboardHistory, setClipboardHistory] = useState<{ id: string; content: string; timestamp: Date }[]>([]);
-  const [loading, setLoading] = useState({ system: false, processes: false });
-  const [connected, setConnected] = useState(false);
+  const [history, setHistory] = useState<CommandResult[]>([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Execute command via API
+  // Persist history to localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('jarvis_history');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setHistory(parsed.map((h: any) => ({ ...h, timestamp: new Date(h.timestamp) })));
+      } catch {}
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('jarvis_history', JSON.stringify(history.slice(0, 50)));
+  }, [history]);
+
+  // Auto-scroll
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [history]);
+
+  // Execute command
   const executeCommand = useCallback(async (command: string) => {
+    if (!command.trim()) return;
+
     const startTime = Date.now();
     const id = Date.now().toString();
+
+    setLoading(true);
+    setInput('');
 
     try {
       const resp = await fetch('/api/jarvis/chat', {
@@ -70,277 +83,239 @@ export function JarvisGUI() {
         body: JSON.stringify({ message: command }),
       });
 
-      if (resp.ok) {
-        const data = await resp.json();
-        const result: CommandResult = {
-          id,
-          command,
-          result: data.content,
-          success: true,
-          timestamp: new Date(),
-          duration: Date.now() - startTime,
-        };
-        setCommandHistory(prev => [result, ...prev].slice(0, 50));
-        setLastResult(result);
-      } else {
-        const result: CommandResult = {
-          id,
-          command,
-          result: `Error: HTTP ${resp.status}`,
-          success: false,
-          timestamp: new Date(),
-          duration: Date.now() - startTime,
-        };
-        setCommandHistory(prev => [result, ...prev].slice(0, 50));
-        setLastResult(result);
-      }
-    } catch (e) {
+      const data = await resp.json();
       const result: CommandResult = {
+        id,
+        command,
+        result: data.content || 'No response',
+        success: resp.ok,
+        timestamp: new Date(),
+        duration: Date.now() - startTime,
+      };
+
+      setHistory(prev => [result, ...prev]);
+    } catch (e) {
+      setHistory(prev => [{
         id,
         command,
         result: `Error: ${e instanceof Error ? e.message : 'Connection failed'}`,
         success: false,
         timestamp: new Date(),
         duration: Date.now() - startTime,
-      };
-      setCommandHistory(prev => [result, ...prev].slice(0, 50));
-      setLastResult(result);
-    }
-  }, []);
-
-  // Fetch system info
-  const fetchSystemInfo = useCallback(async () => {
-    setLoading(prev => ({ ...prev, system: true }));
-    try {
-      const resp = await fetch('/api/jarvis/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: 'system' }),
-      });
-      if (resp.ok) {
-        // Parse system info from response
-        const data = await resp.json();
-        // Extract key-value pairs from the response
-        const lines = data.content.split('\n');
-        const info: Partial<SystemInfo> = {};
-        for (const line of lines) {
-          if (line.includes('Hostname:')) info.hostname = line.split(':')[1]?.trim();
-          if (line.includes('User:')) info.username = line.split(':')[1]?.trim();
-          if (line.includes('OS:')) info.os_version = line.split(':').slice(1).join(':').trim();
-          if (line.includes('CPU cores:')) info.cpu_count = parseInt(line.split(':')[1]) || 0;
-          if (line.includes('Memory:')) {
-            const match = line.match(/([\d.]+)\s*GB\s*\/\s*([\d.]+)\s*GB/);
-            if (match) {
-              info.memory_available_gb = parseFloat(match[1]);
-              info.memory_total_gb = parseFloat(match[2]);
-            }
-          }
-        }
-        setSystemInfo(info as SystemInfo);
-      }
+      }, ...prev]);
     } finally {
-      setLoading(prev => ({ ...prev, system: false }));
+      setLoading(false);
     }
   }, []);
-
-  // Fetch processes
-  const fetchProcesses = useCallback(async () => {
-    setLoading(prev => ({ ...prev, processes: true }));
-    try {
-      const resp = await fetch('/api/jarvis/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: 'processes' }),
-      });
-      if (resp.ok) {
-        const data = await resp.json();
-        // Parse process list from response
-        const lines = data.content.split('\n').filter((l: string) => l.includes('(PID'));
-        const procs: Process[] = lines.map((line: string) => {
-          const match = line.match(/PID\s+(\d+).*?CPU\s+([\d.]+).*?RAM\s+(\d+)MB/);
-          if (match) {
-            return {
-              pid: parseInt(match[1]),
-              name: line.split('(')[0].replace('- ', '').trim(),
-              cpu_percent: parseFloat(match[2]),
-              memory_mb: parseInt(match[3]),
-              status: 'running',
-            };
-          }
-          return null;
-        }).filter(Boolean) as Process[];
-        setProcesses(procs);
-      }
-    } finally {
-      setLoading(prev => ({ ...prev, processes: false }));
-    }
-  }, []);
-
-  // Fetch open windows
-  const fetchWindows = useCallback(async () => {
-    try {
-      const resp = await fetch('/api/jarvis/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: 'windows' }),
-      });
-      if (resp.ok) {
-        const data = await resp.json();
-        const lines = data.content.split('\n').filter((l: string) => l.startsWith('- '));
-        const wins: Window[] = lines.map((line: string) => {
-          const parts = line.replace('- ', '').split(':');
-          return {
-            name: parts[0]?.trim() || '',
-            title: parts.slice(1).join(':').trim() || '',
-          };
-        });
-        setOpenWindows(wins);
-      }
-    } catch {
-      // Silently fail
-    }
-  }, []);
-
-  // Fetch clipboard
-  const fetchClipboard = useCallback(async () => {
-    try {
-      const resp = await fetch('/api/jarvis/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: 'clipboard' }),
-      });
-      if (resp.ok) {
-        const data = await resp.json();
-        const content = data.content.replace('**Clipboard:**\n```\n', '').replace('\n```', '').trim();
-        if (content && content !== 'Clipboard is empty.') {
-          setClipboardContent(content);
-        }
-      }
-    } catch {
-      // Silently fail
-    }
-  }, []);
-
-  // Kill process
-  const killProcess = useCallback(async (pid: number) => {
-    await executeCommand(`run Stop-Process -Id ${pid} -Force`);
-    fetchProcesses();
-  }, [executeCommand, fetchProcesses]);
-
-  // Open app
-  const openApp = useCallback(async (app: string) => {
-    await executeCommand(`open ${app}`);
-    fetchWindows();
-  }, [executeCommand, fetchWindows]);
-
-  // Close app
-  const closeApp = useCallback(async (app: string) => {
-    await executeCommand(`close ${app}`);
-    fetchWindows();
-  }, [executeCommand, fetchWindows]);
-
-  // Initial data load
-  useEffect(() => {
-    fetchSystemInfo();
-    fetchProcesses();
-    fetchWindows();
-    fetchClipboard();
-    setConnected(true);
-
-    // Refresh every 30 seconds
-    const interval = setInterval(() => {
-      fetchProcesses();
-      fetchWindows();
-    }, 30000);
-
-    return () => clearInterval(interval);
-  }, [fetchSystemInfo, fetchProcesses, fetchWindows, fetchClipboard]);
 
   return (
-    <div className="space-y-4">
+    <div className="h-[calc(100vh-100px)] flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Terminal className="h-6 w-6 text-cyan-500" />
-            Jarvis Control Center
-          </h1>
-          <p className="text-muted-foreground mt-1">Full device control and monitoring</p>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
+            <Terminal className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold">Jarvis Control Center</h1>
+            <p className="text-xs text-muted-foreground">Full device control and monitoring</p>
+          </div>
         </div>
-        <Badge variant={connected ? 'default' : 'destructive'} className="text-sm">
-          {connected ? 'Connected' : 'Disconnected'}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant="default" className="bg-green-500">Connected</Badge>
+          <Button variant="ghost" size="icon" onClick={() => setHistory([])}>
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
-      {/* Main Layout */}
-      <div className="grid grid-cols-12 gap-4">
-        {/* Left Panel - Command Palette */}
-        <div className="col-span-3">
-          <CommandPalette onCommand={executeCommand} history={commandHistory} />
+      {/* Main Content */}
+      <div className="flex-1 grid grid-cols-12 gap-4 min-h-0">
+        {/* Left - Command Palette */}
+        <div className="col-span-3 flex flex-col">
+          <Card className="flex-1 flex flex-col overflow-hidden">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Keyboard className="h-4 w-4" />
+                Commands
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex-1 overflow-hidden p-2">
+              <ScrollArea className="h-full">
+                <div className="space-y-1">
+                  {COMMANDS.map(cmd => (
+                    <button
+                      key={cmd.name}
+                      onClick={() => {
+                        if (cmd.needsArg) {
+                          setInput(`${cmd.name} `);
+                        } else {
+                          executeCommand(cmd.name);
+                        }
+                      }}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left hover:bg-muted text-sm group"
+                    >
+                      <cmd.icon className="h-3.5 w-3.5 text-muted-foreground group-hover:text-foreground" />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-xs">{cmd.label}</div>
+                        <div className="text-[10px] text-muted-foreground truncate">{cmd.description}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Center Panel - Results + Tabs */}
-        <div className="col-span-6">
-          <Tabs defaultValue="results" className="h-full">
-            <TabsList>
-              <TabsTrigger value="results" className="flex items-center gap-1">
-                <Terminal className="h-3.5 w-3.5" />
-                Results
-              </TabsTrigger>
-              <TabsTrigger value="system" className="flex items-center gap-1">
-                <Monitor className="h-3.5 w-3.5" />
-                System
-              </TabsTrigger>
-              <TabsTrigger value="processes" className="flex items-center gap-1">
-                <Activity className="h-3.5 w-3.5" />
-                Processes
-              </TabsTrigger>
-              <TabsTrigger value="apps" className="flex items-center gap-1">
-                <AppWindow className="h-3.5 w-3.5" />
-                Apps
-              </TabsTrigger>
-            </TabsList>
+        {/* Center - Terminal */}
+        <div className="col-span-6 flex flex-col">
+          <Card className="flex-1 flex flex-col overflow-hidden">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Terminal className="h-4 w-4" />
+                Terminal
+                <Badge variant="outline" className="text-xs ml-auto">{history.length} commands</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex-1 flex flex-col overflow-hidden p-2">
+              {/* Output */}
+              <ScrollArea className="flex-1 mb-2" ref={scrollRef}>
+                <div className="space-y-2 p-2">
+                  {history.length === 0 ? (
+                    <div className="text-center py-12 text-muted-foreground">
+                      <Terminal className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">Type a command to get started</p>
+                      <p className="text-xs mt-1">Try: system, processes, open chrome</p>
+                    </div>
+                  ) : (
+                    history.map(item => (
+                      <div key={item.id} className="border rounded-lg overflow-hidden">
+                        {/* Command */}
+                        <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/50 text-xs">
+                          {item.success ? (
+                            <CheckCircle className="h-3 w-3 text-green-500" />
+                          ) : (
+                            <XCircle className="h-3 w-3 text-red-500" />
+                          )}
+                          <span className="font-mono font-medium">{item.command}</span>
+                          <span className="text-muted-foreground ml-auto">{item.duration}ms</span>
+                        </div>
+                        {/* Output */}
+                        <div className="p-3 bg-black/50">
+                          <pre className="text-xs font-mono text-green-400 whitespace-pre-wrap overflow-auto max-h-48">
+                            {item.result}
+                          </pre>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                  {loading && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-muted/50 rounded text-xs">
+                      <div className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse" />
+                      <span className="text-muted-foreground">Executing...</span>
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
 
-            <TabsContent value="results" className="mt-4">
-              <ResultsPanel result={lastResult} />
-            </TabsContent>
-
-            <TabsContent value="system" className="mt-4">
-              <SystemPanel data={systemInfo} loading={loading.system} />
-            </TabsContent>
-
-            <TabsContent value="processes" className="mt-4">
-              <ProcessManager
-                processes={processes}
-                loading={loading.processes}
-                onRefresh={fetchProcesses}
-                onKill={killProcess}
-              />
-            </TabsContent>
-
-            <TabsContent value="apps" className="mt-4">
-              <AppLauncher
-                onOpen={openApp}
-                onClose={closeApp}
-                openWindows={openWindows}
-              />
-            </TabsContent>
-          </Tabs>
+              {/* Input */}
+              <div className="flex gap-2">
+                <Input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && executeCommand(input)}
+                  placeholder="Type a command... (e.g., system, open chrome, processes)"
+                  className="font-mono text-sm"
+                  disabled={loading}
+                />
+                <Button
+                  onClick={() => executeCommand(input)}
+                  size="icon"
+                  disabled={loading || !input.trim()}
+                  className="shrink-0"
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Right Panel - History + Clipboard */}
-        <div className="col-span-3 space-y-4">
-          <ClipboardManager
-            currentClipboard={clipboardContent}
-            history={clipboardHistory}
-            onCopy={(text) => navigator.clipboard.writeText(text)}
-            onClear={() => setClipboardHistory([])}
-          />
-          <CommandHistory
-            history={commandHistory}
-            onClear={() => setCommandHistory([])}
-            onRerun={executeCommand}
-          />
+        {/* Right - Quick Info */}
+        <div className="col-span-3 flex flex-col gap-4">
+          {/* Quick Stats */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Activity className="h-4 w-4" />
+                Quick Info
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5">
+                  <Cpu className="h-3 w-3 text-cyan-500" />
+                  <span>CPU</span>
+                </div>
+                <span className="text-muted-foreground">35%</span>
+              </div>
+              <Progress value={35} className="h-1" />
+
+              <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5">
+                  <MemoryStick className="h-3 w-3 text-purple-500" />
+                  <span>RAM</span>
+                </div>
+                <span className="text-muted-foreground">8.2 / 16 GB</span>
+              </div>
+              <Progress value={51} className="h-1" />
+
+              <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5">
+                  <HardDrive className="h-3 w-3 text-amber-500" />
+                  <span>Disk</span>
+                </div>
+                <span className="text-muted-foreground">256 / 512 GB</span>
+              </div>
+              <Progress value={50} className="h-1" />
+            </CardContent>
+          </Card>
+
+          {/* Recent History */}
+          <Card className="flex-1 flex flex-col overflow-hidden">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Clock className="h-4 w-4" />
+                History
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex-1 overflow-hidden p-2">
+              <ScrollArea className="h-full">
+                <div className="space-y-1">
+                  {history.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-4">No commands yet</p>
+                  ) : (
+                    history.slice(0, 20).map(item => (
+                      <button
+                        key={item.id}
+                        onClick={() => executeCommand(item.command)}
+                        className="w-full flex items-center gap-2 px-2 py-1 rounded hover:bg-muted text-left"
+                      >
+                        {item.success ? (
+                          <CheckCircle className="h-3 w-3 text-green-500 shrink-0" />
+                        ) : (
+                          <XCircle className="h-3 w-3 text-red-500 shrink-0" />
+                        )}
+                        <span className="font-mono text-xs truncate flex-1">{item.command}</span>
+                        <span className="text-[10px] text-muted-foreground shrink-0">{item.duration}ms</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

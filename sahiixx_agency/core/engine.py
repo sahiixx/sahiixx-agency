@@ -10,6 +10,7 @@ from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from sahiixx_agency.adapters.base import BaseAdapter
 from .approval import ApprovalManager
 from .bus import MessageBus
 from .chat import ChatManager
@@ -22,7 +23,7 @@ from .marketplace import MarketplaceManager
 from .memory import AgencyMemory
 from .metrics import MetricsCollector
 from .models import (
-    AgencyConfig,
+
     AgencyTask,
     ApprovalRequest,
     BusMessage,
@@ -156,6 +157,36 @@ def _make_instagram(config, network_policy, audit_logger, task):
     return adapter, task.payload
 
 
+def _make_gcc_outbound(config, network_policy, audit_logger, task):
+    from sahiixx_agency.adapters.skills.gcc_outbound import GccOutboundSkillAdapter
+
+    payload = dict(task.payload)
+    if "context" not in payload:
+        payload["context"] = {}
+    if "skill" not in payload["context"]:
+        # Infer skill from intent keywords
+        intent = task.intent.lower()
+        if any(k in intent for k in ("real estate", "property", "dubai deal", "riyadh deal", "gcc real estate")):
+            payload["context"]["skill"] = "gcc_real_estate_deal_analyzer"
+        elif any(k in intent for k in ("lead score", "score leads", "prioritize leads", "gcc leads")):
+            payload["context"]["skill"] = "gcc_lead_scoring"
+        elif any(k in intent for k in ("market signal", "market signals", "gcc market", "market intelligence")):
+            payload["context"]["skill"] = "gcc_market_signals"
+        else:
+            payload["context"]["skill"] = "gcc_outbound_prospecting"
+    return GccOutboundSkillAdapter(module=None), payload
+
+
+def _make_postiz(config, network_policy, audit_logger, task):
+    from sahiixx_agency.adapters.social.postiz_adapter import PostizAdapter
+
+    adapter = PostizAdapter(
+        network_policy=network_policy,
+        audit_logger=audit_logger,
+    )
+    return adapter, task.payload
+
+
 _SPECIALIZED_ADAPTERS: dict[
     str,
     Callable[[AgencyConfig, NetworkPolicy, AuditLogger, AgencyTask], tuple[Any, dict[str, Any]]],
@@ -172,6 +203,9 @@ _SPECIALIZED_ADAPTERS: dict[
     "openmontage": _make_openmontage,
     "linkedin": _make_linkedin,
     "instagram": _make_instagram,
+    "postiz": _make_postiz,
+    "gcc_outbound": _make_gcc_outbound,
+    "gcc-outbound": _make_gcc_outbound,
 }
 
 
@@ -730,12 +764,15 @@ class AgencyEngine:
                         factory = _SPECIALIZED_ADAPTERS.get(mid)
                         if factory is not None:
                             adapter, payload = factory(self.config, self.network_policy, self.audit, task)
-                            run_result = await adapter.run(mod, payload)
+                            if type(adapter).execute is not BaseAdapter.execute:
+                                run_result = await adapter.execute(payload)
+                            else:
+                                run_result = await adapter.run(mod, payload)
                             task.result = {
-                                "module": mod.name,
-                                "category": mod.category.value,
-                                "url": mod.url,
-                                "capabilities": mod.capabilities,
+                                "module": mod.name if mod else task.module_id,
+                                "category": mod.category.value if mod else (task.category.value if task.category else None),
+                                "url": mod.url if mod else None,
+                                "capabilities": mod.capabilities if mod else [],
                                 "execution": run_result,
                             }
                         elif task.module_id:

@@ -662,16 +662,34 @@ export function DeviceControlPanel() {
         </div>
       )}
 
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Monitor className="h-4 w-4 text-jarvis-cyan" />
+          <h2 className="text-sm font-display font-bold uppercase tracking-wider text-jarvis-text-primary">
+            Device Control
+          </h2>
+          <div className="live-pulse" style={{ '--pulse-color': '#00F0FF' } as React.CSSProperties} />
+        </div>
+        <button
+          onClick={() => setHudOpen(true)}
+          className="flex items-center gap-2 px-3 py-1.5 rounded border border-jarvis-cyan/30 text-jarvis-cyan text-xs font-display uppercase tracking-wider hover:bg-jarvis-cyan/20 transition-colors"
+        >
+          <Maximize2 className="h-3 w-3" />
+          HUD
+        </button>
+      </div>
+
       {/* Tabs */}
       <div className="flex items-center gap-1 border-b border-white/6 pb-1">
         {tabs.map(tab => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-display uppercase tracking-wider transition-all ${
               activeTab === tab.key
-                ? 'bg-accent-cyan/10 text-accent-cyan'
-                : 'text-[var(--text-muted)] hover:bg-white/5 hover:text-[var(--text-primary)]'
+                ? 'text-jarvis-cyan border-b-2 border-jarvis-cyan shadow-[0_0_12px_rgba(0,240,255,0.2)]'
+                : 'text-jarvis-text-muted hover:text-jarvis-text-secondary'
             }`}
           >
             {tab.icon}
@@ -683,122 +701,114 @@ export function DeviceControlPanel() {
       {/* Overview Tab */}
       {activeTab === 'overview' && (
         <div className="space-y-4">
-          {/* System Info + Charts */}
-          <div className="rounded-lg border border-white/6 bg-[var(--bg-elevated)] p-4 space-y-3">
-            <div className="flex items-center gap-2 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">
-              <Monitor className="h-3.5 w-3.5" />
-              System Info
-            </div>
+          {/* System Charts — already has jarvis-card */}
+          <SystemCharts cpuData={cpuHistory} memData={memHistory} diskData={diskHistory} netData={netHistory} />
 
-            {infoLoading && info == null ? (
-              <div className="h-24 rounded-md bg-white/5 animate-pulse" />
-            ) : (
-              <>
-                <SystemCharts cpuData={cpuHistory} memData={memHistory} diskData={diskHistory} netData={netHistory} />
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="rounded-md bg-white/5 p-2 space-y-1">
-                    <div className="flex items-center gap-1 text-[10px] text-[var(--text-muted)]">
-                      <Cpu className="h-3 w-3" /> CPU
-                    </div>
-                    <div className="text-sm font-mono font-semibold text-accent-cyan">
-                      {info?.cpu_percent != null ? `${info.cpu_percent.toFixed(1)}%` : '—'}
-                    </div>
-                  </div>
-                  <div className="rounded-md bg-white/5 p-2 space-y-1">
-                    <div className="flex items-center gap-1 text-[10px] text-[var(--text-muted)]">
-                      <HardDrive className="h-3 w-3" /> RAM
-                    </div>
-                    <div className="text-sm font-mono font-semibold text-accent-purple">
-                      {info?.memory_percent != null ? `${info.memory_percent.toFixed(1)}%` : '—'}
-                    </div>
-                  </div>
-                  <div className="rounded-md bg-white/5 p-2">
-                    <div className="flex items-center gap-1 text-[10px] text-[var(--text-muted)]">
-                      <HardDrive className="h-3 w-3" /> Disk
-                    </div>
-                    <div className="text-sm font-mono font-semibold text-accent-amber">
-                      {info?.disk_usage
-                        ? Object.entries(info.disk_usage)
-                            .map(([d, u]) => `${d}: ${((u.used / (u.used + u.free)) * 100).toFixed(0)}%`)
-                            .join(', ')
-                        : '—'}
-                    </div>
-                  </div>
-                  <div className="rounded-md bg-white/5 p-2">
-                    <div className="flex items-center gap-1 text-[10px] text-[var(--text-muted)]">
-                      <Clock className="h-3 w-3" /> Uptime
-                    </div>
-                    <div className="text-sm font-mono font-semibold text-accent-green">
-                      {formatUptime(info?.uptime_seconds)}
-                    </div>
-                  </div>
-                </div>
-                <div className="text-[10px] text-[var(--text-muted)] font-mono">
-                  {info?.platform} {info?.platform_version} · {info?.machine}
-                </div>
-                {/* SSE Stream Status */}
-                <div className="flex items-center gap-2 text-[10px]">
-                  <div className={`h-1.5 w-1.5 rounded-full ${streamConnected ? 'bg-accent-green animate-pulse' : 'bg-accent-red'}`} />
-                  <span className={streamConnected ? 'text-accent-green' : 'text-accent-red'}>
-                    {streamConnected ? 'Live stream connected' : 'Live stream offline'}
-                  </span>
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* CPU Heatmap */}
-          <div className="rounded-lg border border-white/6 bg-[var(--bg-elevated)] p-4 space-y-3">
-            <div className="flex items-center gap-2 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">
-              <Cpu className="h-3.5 w-3.5" />
-              CPU Core Heatmap
-            </div>
+          {/* CPU Heatmap + Info Cards Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* CPU Heatmap — already has jarvis-card */}
             <CpuHeatmap cores={coreData} />
+
+            {/* System Info Cards */}
+            <div className="jarvis-card p-4 space-y-3">
+              <div className="flex items-center gap-2 text-xs font-display font-semibold uppercase tracking-wider text-jarvis-text-secondary">
+                <Monitor className="h-3.5 w-3.5 text-jarvis-cyan" />
+                System Info
+              </div>
+              {infoLoading && info == null ? (
+                <div className="h-24 rounded-md bg-white/5 animate-pulse" />
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="rounded-md bg-white/5 p-2 space-y-1">
+                      <div className="flex items-center gap-1 text-[10px] text-jarvis-text-muted">
+                        <Cpu className="h-3 w-3" /> CPU
+                      </div>
+                      <div className="text-sm font-mono font-semibold text-jarvis-cyan">
+                        {info?.cpu_percent != null ? `${info.cpu_percent.toFixed(1)}%` : '—'}
+                      </div>
+                    </div>
+                    <div className="rounded-md bg-white/5 p-2 space-y-1">
+                      <div className="flex items-center gap-1 text-[10px] text-jarvis-text-muted">
+                        <HardDrive className="h-3 w-3" /> RAM
+                      </div>
+                      <div className="text-sm font-mono font-semibold text-jarvis-green">
+                        {info?.memory_percent != null ? `${info.memory_percent.toFixed(1)}%` : '—'}
+                      </div>
+                    </div>
+                    <div className="rounded-md bg-white/5 p-2">
+                      <div className="flex items-center gap-1 text-[10px] text-jarvis-text-muted">
+                        <HardDrive className="h-3 w-3" /> Disk
+                      </div>
+                      <div className="text-sm font-mono font-semibold text-jarvis-amber">
+                        {info?.disk_usage
+                          ? Object.entries(info.disk_usage)
+                              .map(([d, u]) => `${d}: ${((u.used / (u.used + u.free)) * 100).toFixed(0)}%`)
+                              .join(', ')
+                          : '—'}
+                      </div>
+                    </div>
+                    <div className="rounded-md bg-white/5 p-2">
+                      <div className="flex items-center gap-1 text-[10px] text-jarvis-text-muted">
+                        <Clock className="h-3 w-3" /> Uptime
+                      </div>
+                      <div className="text-sm font-mono font-semibold text-jarvis-green">
+                        {formatUptime(info?.uptime_seconds)}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-[10px] text-jarvis-text-muted font-mono">
+                    {info?.platform} {info?.platform_version} · {info?.machine}
+                  </div>
+                  {/* SSE Stream Status */}
+                  <div className="flex items-center gap-2 text-[10px]">
+                    <div className={`h-1.5 w-1.5 rounded-full ${streamConnected ? 'bg-jarvis-green animate-pulse' : 'bg-jarvis-red'}`} />
+                    <span className={streamConnected ? 'text-jarvis-green' : 'text-jarvis-red'}>
+                      {streamConnected ? 'Live stream connected' : 'Live stream offline'}
+                    </span>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
-          {/* Process Tree */}
-          <div className="rounded-lg border border-white/6 bg-[var(--bg-elevated)] p-4 space-y-3">
-            <div className="flex items-center gap-2 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">
-              <List className="h-3.5 w-3.5" />
-              Process Tree
-            </div>
-            <ProcessTree
-              processes={processes.map(p => ({
-                pid: p.pid,
-                name: p.name,
-                cpu_percent: p.cpu_percent,
-                memory_mb: p.memory_mb,
-                status: p.status,
-                children: [],
-              }))}
-            />
-          </div>
+          {/* Process Tree — already has jarvis-card */}
+          <ProcessTree
+            processes={processes.map(p => ({
+              pid: p.pid,
+              name: p.name,
+              cpu_percent: p.cpu_percent,
+              memory_mb: p.memory_mb,
+              status: p.status,
+              children: [],
+            }))}
+          />
 
           {/* Disk Drives */}
-          <div className="rounded-lg border border-white/6 bg-[var(--bg-elevated)] p-4 space-y-3">
-            <div className="flex items-center gap-2 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">
-              <HardDrive className="h-3.5 w-3.5" />
+          <div className="jarvis-card p-4 space-y-3">
+            <div className="flex items-center gap-2 text-xs font-display font-semibold uppercase tracking-wider text-jarvis-text-secondary">
+              <HardDrive className="h-3.5 w-3.5 text-jarvis-cyan" />
               Disk Drives
             </div>
             {diskLoading && diskInfo.length === 0 ? (
               <div className="h-16 rounded-md bg-white/5 animate-pulse" />
             ) : diskInfo.length === 0 ? (
-              <div className="text-xs text-[var(--text-muted)]">No disk data available</div>
+              <div className="text-xs text-jarvis-text-muted">No disk data available</div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {diskInfo.map(d => (
                   <div key={d.device_id} className="rounded-md bg-white/5 p-2 space-y-1">
-                    <div className="flex items-center justify-between text-[10px] text-[var(--text-muted)]">
+                    <div className="flex items-center justify-between text-[10px] text-jarvis-text-muted">
                       <span>Drive {d.device_id}</span>
                       <span className="font-mono">{d.used_percent.toFixed(0)}%</span>
                     </div>
                     <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-accent-amber transition-all"
+                        className="h-full rounded-full bg-jarvis-amber transition-all"
                         style={{ width: `${Math.min(d.used_percent, 100)}%` }}
                       />
                     </div>
-                    <div className="flex items-center justify-between text-[10px] text-[var(--text-muted)]">
+                    <div className="flex items-center justify-between text-[10px] text-jarvis-text-muted">
                       <span>{d.used_gb.toFixed(1)} GB used</span>
                       <span>{d.free_gb.toFixed(1)} GB free</span>
                     </div>
@@ -809,23 +819,23 @@ export function DeviceControlPanel() {
           </div>
 
           {/* Network Adapters */}
-          <div className="rounded-lg border border-white/6 bg-[var(--bg-elevated)] p-4 space-y-3">
-            <div className="flex items-center gap-2 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">
-              <Network className="h-3.5 w-3.5" />
+          <div className="jarvis-card p-4 space-y-3">
+            <div className="flex items-center gap-2 text-xs font-display font-semibold uppercase tracking-wider text-jarvis-text-secondary">
+              <Network className="h-3.5 w-3.5 text-jarvis-cyan" />
               Network
             </div>
             {networkLoading && networkInfo.length === 0 ? (
               <div className="h-16 rounded-md bg-white/5 animate-pulse" />
             ) : networkInfo.length === 0 ? (
-              <div className="text-xs text-[var(--text-muted)]">No network adapters found</div>
+              <div className="text-xs text-jarvis-text-muted">No network adapters found</div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {networkInfo.map((a, i) => (
                   <div key={`${a.Name}-${i}`} className="rounded-md bg-white/5 p-2 space-y-1">
-                    <div className="text-xs text-[var(--text-primary)] font-medium truncate">{a.Name}</div>
-                    <div className="text-[10px] text-[var(--text-muted)]">Status: {a.Status}</div>
-                    <div className="text-[10px] text-[var(--text-muted)]">Speed: {a.LinkSpeed}</div>
-                    <div className="text-[10px] text-[var(--text-muted)] font-mono truncate">{a.MacAddress}</div>
+                    <div className="text-xs text-jarvis-text-primary font-medium truncate">{a.Name}</div>
+                    <div className="text-[10px] text-jarvis-text-muted">Status: {a.Status}</div>
+                    <div className="text-[10px] text-jarvis-text-muted">Speed: {a.LinkSpeed}</div>
+                    <div className="text-[10px] text-jarvis-text-muted font-mono truncate">{a.MacAddress}</div>
                   </div>
                 ))}
               </div>
@@ -834,20 +844,20 @@ export function DeviceControlPanel() {
 
           {/* Battery */}
           {batteryInfo.length > 0 && (
-            <div className="rounded-lg border border-white/6 bg-[var(--bg-elevated)] p-4 space-y-3">
-              <div className="flex items-center gap-2 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">
-                <Battery className="h-3.5 w-3.5" />
+            <div className="jarvis-card p-4 space-y-3">
+              <div className="flex items-center gap-2 text-xs font-display font-semibold uppercase tracking-wider text-jarvis-text-secondary">
+                <Battery className="h-3.5 w-3.5 text-jarvis-cyan" />
                 Battery
               </div>
               {batteryInfo.map((b, i) => (
                 <div key={i} className="rounded-md bg-white/5 p-2 space-y-1">
-                  <div className="flex items-center justify-between text-[10px] text-[var(--text-muted)]">
+                  <div className="flex items-center justify-between text-[10px] text-jarvis-text-muted">
                     <span>Charge Remaining</span>
-                    <span className="font-mono text-accent-green">{b.EstimatedChargeRemaining ?? '—'}%</span>
+                    <span className="font-mono text-jarvis-green">{b.EstimatedChargeRemaining ?? '—'}%</span>
                   </div>
                   <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
                     <div
-                      className="h-full rounded-full bg-accent-green transition-all"
+                      className="h-full rounded-full bg-jarvis-green transition-all"
                       style={{ width: `${Math.min(b.EstimatedChargeRemaining ?? 0, 100)}%` }}
                     />
                   </div>
@@ -857,14 +867,14 @@ export function DeviceControlPanel() {
           )}
 
           {/* Media Controls */}
-          <div className="rounded-lg border border-white/6 bg-[var(--bg-elevated)] p-4 space-y-3">
-            <div className="flex items-center gap-2 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">
-              <Activity className="h-3.5 w-3.5" />
+          <div className="jarvis-card p-4 space-y-3">
+            <div className="flex items-center gap-2 text-xs font-display font-semibold uppercase tracking-wider text-jarvis-text-secondary">
+              <Activity className="h-3.5 w-3.5 text-jarvis-cyan" />
               Media Controls
             </div>
             {/* Volume */}
             <div className="space-y-1">
-              <div className="flex items-center justify-between text-[10px] text-[var(--text-muted)]">
+              <div className="flex items-center justify-between text-[10px] text-jarvis-text-muted">
                 <span className="flex items-center gap-1">
                   {muted ? <VolumeX className="h-3 w-3" /> : <Volume2 className="h-3 w-3" />}
                   Volume
@@ -878,12 +888,12 @@ export function DeviceControlPanel() {
                   max="100"
                   value={volume}
                   onChange={(e) => handleVolume(Number(e.target.value))}
-                  className="flex-1 accent-accent-cyan h-1.5 rounded-lg appearance-none bg-white/10 cursor-pointer"
+                  className="flex-1 accent-jarvis-cyan h-1.5 rounded-lg appearance-none bg-white/10 cursor-pointer"
                 />
                 <button
                   onClick={handleMuteToggle}
                   className={`rounded-md p-1.5 transition-colors ${
-                    muted ? 'bg-accent-red/10 text-accent-red' : 'bg-white/5 text-[var(--text-muted)] hover:bg-white/10'
+                    muted ? 'bg-jarvis-red/10 text-jarvis-red' : 'bg-white/5 text-jarvis-text-muted hover:bg-white/10'
                   }`}
                   title={muted ? 'Unmute' : 'Mute'}
                 >
@@ -893,7 +903,7 @@ export function DeviceControlPanel() {
             </div>
             {/* Brightness */}
             <div className="space-y-1">
-              <div className="flex items-center justify-between text-[10px] text-[var(--text-muted)]">
+              <div className="flex items-center justify-between text-[10px] text-jarvis-text-muted">
                 <span className="flex items-center gap-1">
                   <Sun className="h-3 w-3" />
                   Brightness
@@ -906,7 +916,7 @@ export function DeviceControlPanel() {
                 max="100"
                 value={brightness}
                 onChange={(e) => handleBrightness(Number(e.target.value))}
-                className="w-full accent-accent-amber h-1.5 rounded-lg appearance-none bg-white/10 cursor-pointer"
+                className="w-full accent-jarvis-amber h-1.5 rounded-lg appearance-none bg-white/10 cursor-pointer"
               />
             </div>
             {/* Media Keys */}
@@ -950,9 +960,9 @@ export function DeviceControlPanel() {
           </div>
 
           {/* Quick Actions Grid */}
-          <div className="rounded-lg border border-white/6 bg-[var(--bg-elevated)] p-4 space-y-3">
-            <div className="flex items-center gap-2 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">
-              <Zap className="h-3.5 w-3.5" />
+          <div className="jarvis-card p-4 space-y-3">
+            <div className="flex items-center gap-2 text-xs font-display font-semibold uppercase tracking-wider text-jarvis-text-secondary">
+              <Zap className="h-3.5 w-3.5 text-jarvis-cyan" />
               Quick Actions
             </div>
             <div className="grid grid-cols-2 gap-2">
@@ -1008,9 +1018,9 @@ export function DeviceControlPanel() {
           </div>
 
           {/* Safety: Shutdown & Restart */}
-          <div className="rounded-lg border border-white/6 bg-[var(--bg-elevated)] p-4 space-y-3">
-            <div className="flex items-center gap-2 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">
-              <AlertTriangle className="h-3.5 w-3.5" />
+          <div className="jarvis-card p-4 space-y-3">
+            <div className="flex items-center gap-2 text-xs font-display font-semibold uppercase tracking-wider text-jarvis-text-secondary">
+              <AlertTriangle className="h-3.5 w-3.5 text-jarvis-red" />
               Power
             </div>
             <div className="grid grid-cols-2 gap-2">
@@ -1032,29 +1042,29 @@ export function DeviceControlPanel() {
           </div>
 
           {/* Clipboard */}
-          <div className="rounded-lg border border-white/6 bg-[var(--bg-elevated)] p-4 space-y-3">
-            <div className="flex items-center gap-2 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">
-              <Clipboard className="h-3.5 w-3.5" />
+          <div className="jarvis-card p-4 space-y-3">
+            <div className="flex items-center gap-2 text-xs font-display font-semibold uppercase tracking-wider text-jarvis-text-secondary">
+              <Clipboard className="h-3.5 w-3.5 text-jarvis-cyan" />
               Clipboard
             </div>
             <textarea
               ref={clipboardInputRef}
               defaultValue={clipboardText}
               placeholder="Clipboard content..."
-              className="w-full h-20 rounded-md bg-white/5 border border-white/6 px-2 py-1.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] resize-none focus:outline-none focus:border-accent-cyan/50"
+              className="w-full h-20 rounded-md bg-white/5 border border-white/6 px-2 py-1.5 text-xs text-jarvis-text-primary placeholder:text-jarvis-text-muted resize-none focus:outline-none focus:border-jarvis-cyan/50"
             />
             <div className="flex items-center gap-2">
               <button
                 onClick={fetchClipboard}
                 disabled={clipboardLoading}
-                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium bg-white/5 text-[var(--text-secondary)] hover:bg-white/10 hover:text-[var(--text-primary)] transition-colors disabled:opacity-40"
+                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium bg-white/5 text-jarvis-text-secondary hover:bg-white/10 hover:text-jarvis-text-primary transition-colors disabled:opacity-40"
               >
                 {clipboardLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <ChevronDown className="h-3 w-3" />}
                 Refresh
               </button>
               <button
                 onClick={handleCopyToClipboard}
-                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium bg-accent-cyan/10 text-accent-cyan hover:bg-accent-cyan/20 transition-colors"
+                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium bg-jarvis-cyan/10 text-jarvis-cyan hover:bg-jarvis-cyan/20 transition-colors"
               >
                 <Clipboard className="h-3 w-3" />
                 Copy to Clipboard
@@ -1063,16 +1073,16 @@ export function DeviceControlPanel() {
           </div>
 
           {/* WiFi / Bluetooth */}
-          <div className="rounded-lg border border-white/6 bg-[var(--bg-elevated)] p-4 space-y-3">
+          <div className="jarvis-card p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">
-                <Wifi className="h-3.5 w-3.5" />
+              <div className="flex items-center gap-2 text-xs font-display font-semibold uppercase tracking-wider text-jarvis-text-secondary">
+                <Wifi className="h-3.5 w-3.5 text-jarvis-cyan" />
                 Network
               </div>
               <button
                 onClick={fetchWifiBt}
                 disabled={wifiBtLoading}
-                className="flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-medium bg-white/5 text-[var(--text-muted)] hover:bg-white/10 transition-colors disabled:opacity-40"
+                className="flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-medium bg-white/5 text-jarvis-text-muted hover:bg-white/10 transition-colors disabled:opacity-40"
               >
                 {wifiBtLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <ChevronUp className="h-3 w-3" />}
                 Refresh
@@ -1080,42 +1090,42 @@ export function DeviceControlPanel() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="space-y-1">
-                <div className="flex items-center gap-1 text-[10px] text-[var(--text-muted)] uppercase">
+                <div className="flex items-center gap-1 text-[10px] text-jarvis-text-muted uppercase">
                   <Wifi className="h-3 w-3" />
                   WiFi Networks
                 </div>
                 <div className="space-y-1 max-h-32 overflow-y-auto">
                   {wifiNetworks.length === 0 ? (
-                    <div className="text-xs text-[var(--text-muted)] py-1">No networks found</div>
+                    <div className="text-xs text-jarvis-text-muted py-1">No networks found</div>
                   ) : (
                     wifiNetworks.map((net, i) => (
                       <div
                         key={`wifi-${i}`}
                         className="flex items-center justify-between rounded-md bg-white/5 px-2 py-1 text-xs"
                       >
-                        <span className="truncate text-[var(--text-primary)]">{net.name}</span>
-                        {net.connected && <span className="text-[10px] text-accent-green font-medium">Connected</span>}
+                        <span className="truncate text-jarvis-text-primary">{net.name}</span>
+                        {net.connected && <span className="text-[10px] text-jarvis-green font-medium">Connected</span>}
                       </div>
                     ))
                   )}
                 </div>
               </div>
               <div className="space-y-1">
-                <div className="flex items-center gap-1 text-[10px] text-[var(--text-muted)] uppercase">
+                <div className="flex items-center gap-1 text-[10px] text-jarvis-text-muted uppercase">
                   <Bluetooth className="h-3 w-3" />
                   Bluetooth Devices
                 </div>
                 <div className="space-y-1 max-h-32 overflow-y-auto">
                   {bluetoothDevices.length === 0 ? (
-                    <div className="text-xs text-[var(--text-muted)] py-1">No devices found</div>
+                    <div className="text-xs text-jarvis-text-muted py-1">No devices found</div>
                   ) : (
                     bluetoothDevices.map((dev, i) => (
                       <div
                         key={`bt-${i}`}
                         className="flex items-center justify-between rounded-md bg-white/5 px-2 py-1 text-xs"
                       >
-                        <span className="truncate text-[var(--text-primary)]">{dev.name}</span>
-                        {dev.connected && <span className="text-[10px] text-accent-cyan font-medium">Paired</span>}
+                        <span className="truncate text-jarvis-text-primary">{dev.name}</span>
+                        {dev.connected && <span className="text-[10px] text-jarvis-cyan font-medium">Paired</span>}
                       </div>
                     ))
                   )}
@@ -1126,8 +1136,8 @@ export function DeviceControlPanel() {
 
           {/* Last Action */}
           {lastAction && (
-            <div className="rounded-lg border border-white/6 bg-[var(--bg-elevated)] p-3">
-              <div className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
+            <div className="jarvis-card p-3">
+              <div className="flex items-center gap-2 text-xs text-jarvis-text-muted">
                 <Activity className="h-3 w-3" />
                 <span>Last: {lastAction.action} → {lastAction.result}</span>
               </div>
@@ -1138,9 +1148,9 @@ export function DeviceControlPanel() {
 
       {/* Processes Tab */}
       {activeTab === 'processes' && (
-        <div className="rounded-xl border border-white/[0.06] bg-[var(--bg-elevated)] p-4 space-y-3">
-          <div className="flex items-center gap-2 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">
-            <Cpu className="h-3.5 w-3.5" />
+        <div className="jarvis-card p-4 space-y-3">
+          <div className="flex items-center gap-2 text-xs font-display font-semibold uppercase tracking-wider text-jarvis-text-secondary">
+            <Cpu className="h-3.5 w-3.5 text-jarvis-cyan" />
             Processes
           </div>
           <ProcessManager processes={processes} onKill={handleKillProcess} loading={procLoading} />
@@ -1149,9 +1159,9 @@ export function DeviceControlPanel() {
 
       {/* Services Tab */}
       {activeTab === 'services' && (
-        <div className="rounded-xl border border-white/[0.06] bg-[var(--bg-elevated)] p-4 space-y-3">
-          <div className="flex items-center gap-2 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">
-            <Cog className="h-3.5 w-3.5" />
+        <div className="jarvis-card p-4 space-y-3">
+          <div className="flex items-center gap-2 text-xs font-display font-semibold uppercase tracking-wider text-jarvis-text-secondary">
+            <Cog className="h-3.5 w-3.5 text-jarvis-cyan" />
             Services
           </div>
           <ServiceManager services={services} onAction={handleServiceAction} loading={svcLoading} />
@@ -1160,9 +1170,9 @@ export function DeviceControlPanel() {
 
       {/* Terminal Tab */}
       {activeTab === 'terminal' && (
-        <div className="rounded-xl border border-white/[0.06] bg-[var(--bg-elevated)] p-4 space-y-3">
-          <div className="flex items-center gap-2 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">
-            <TerminalIcon className="h-3.5 w-3.5" />
+        <div className="jarvis-card p-4 space-y-3">
+          <div className="flex items-center gap-2 text-xs font-display font-semibold uppercase tracking-wider text-jarvis-text-secondary">
+            <TerminalIcon className="h-3.5 w-3.5 text-jarvis-cyan" />
             Terminal
           </div>
           <SystemTerminal onExecute={runTerminalCommand} />
@@ -1171,7 +1181,7 @@ export function DeviceControlPanel() {
 
       {/* Voice Tab */}
       {activeTab === 'voice' && (
-        <div className="rounded-xl border border-white/[0.06] bg-[var(--bg-elevated)] p-4">
+        <div className="jarvis-card p-4">
           <VoiceCommandPanel
             onCommand={(command) => {
               console.log('Voice command:', command)
@@ -1189,7 +1199,7 @@ export function DeviceControlPanel() {
 
       {/* Profiler Tab */}
       {activeTab === 'profiler' && (
-        <div className="rounded-xl border border-white/[0.06] bg-[var(--bg-elevated)] p-4">
+        <div className="jarvis-card p-4">
           <PerformanceProfiler
             data={profilerData}
             loading={profilerLoading}
@@ -1199,9 +1209,9 @@ export function DeviceControlPanel() {
 
       {/* Updates Tab */}
       {activeTab === 'updates' && (
-        <div className="rounded-xl border border-white/[0.06] bg-[var(--bg-elevated)] p-4 space-y-3">
-          <div className="flex items-center gap-2 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">
-            <Shield className="h-3.5 w-3.5" />
+        <div className="jarvis-card p-4 space-y-3">
+          <div className="flex items-center gap-2 text-xs font-display font-semibold uppercase tracking-wider text-jarvis-text-secondary">
+            <Shield className="h-3.5 w-3.5 text-jarvis-cyan" />
             Windows Update
           </div>
           <WindowsUpdate
@@ -1215,9 +1225,9 @@ export function DeviceControlPanel() {
 
       {/* Events Tab */}
       {activeTab === 'events' && (
-        <div className="rounded-xl border border-white/[0.06] bg-[var(--bg-elevated)] p-4 space-y-3">
-          <div className="flex items-center gap-2 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">
-            <ScrollText className="h-3.5 w-3.5" />
+        <div className="jarvis-card p-4 space-y-3">
+          <div className="flex items-center gap-2 text-xs font-display font-semibold uppercase tracking-wider text-jarvis-text-secondary">
+            <ScrollText className="h-3.5 w-3.5 text-jarvis-cyan" />
             System Event Log
           </div>
           <SystemEventLog
@@ -1230,20 +1240,21 @@ export function DeviceControlPanel() {
 
       {/* HUD Tab */}
       {activeTab === 'hud' && (
-        <div className="rounded-xl border border-white/[0.06] bg-[var(--bg-elevated)] p-4 space-y-3">
+        <div className="jarvis-card p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">
-              <Maximize2 className="h-3.5 w-3.5" />
+            <div className="flex items-center gap-2 text-xs font-display font-semibold uppercase tracking-wider text-jarvis-text-secondary">
+              <Maximize2 className="h-3.5 w-3.5 text-jarvis-cyan" />
               Jarvis HUD
             </div>
             <button
               onClick={() => setHudOpen(true)}
-              className="px-3 py-1.5 rounded-lg bg-accent-cyan/10 text-accent-cyan text-xs font-medium hover:bg-accent-cyan/20 transition-colors"
+              className="flex items-center gap-2 px-3 py-1.5 rounded border border-jarvis-cyan/30 text-jarvis-cyan text-xs font-display uppercase tracking-wider hover:bg-jarvis-cyan/20 transition-colors"
             >
+              <Maximize2 className="h-3 w-3" />
               Launch Fullscreen
             </button>
           </div>
-          <p className="text-xs text-[var(--text-muted)]">
+          <p className="text-xs text-jarvis-text-muted">
             Click "Launch Fullscreen" to open the immersive Jarvis system monitor overlay.
           </p>
         </div>

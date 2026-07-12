@@ -68,3 +68,7 @@ marketplace-cache/
 # Playwright / e2e
 playwright-report/
 test-results/
+
+# Claude Project metadata
+.claude/
+CLAUDE.md

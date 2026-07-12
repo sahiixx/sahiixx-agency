@@ -1,0 +1,25 @@
+{
+  "id": "test-wf-get",
+  "name": "Test Get",
+  "description": "",
+  "trigger": "manual",
+  "schedule": null,
+  "event_topic": null,
+  "steps": [
+    {
+      "id": "s1",
+      "name": "Step",
+      "action": "noop",
+      "target": null,
+      "intent_template": null,
+      "payload": {},
+      "requires_approval": false,
+      "next_on_success": null,
+      "next_on_failure": null,
+      "condition": null
+    }
+  ],
+  "enabled": true,
+  "created_at": "2026-07-11T21:49:08.690576Z",
+  "updated_at": "2026-07-11T21:49:08.690576Z"
+}

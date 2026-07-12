@@ -5,11 +5,14 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import platform
+import time
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Annotated, Any
 
 import httpx
+import psutil
 from fastapi import Body, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, RedirectResponse, StreamingResponse
@@ -1155,6 +1158,603 @@ async def rate_marketplace_module(
         )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+# ---------- Device Control (Windows System Bridge) ----------
+
+import subprocess
+import platform
+
+
+class DeviceControlRequest(BaseModel):
+    action: str
+    params: dict[str, Any] = Field(default_factory=dict)
+
+
+def _run_ps(command: str) -> tuple[str, str, int]:
+    """Run a PowerShell command and return stdout, stderr, returncode."""
+    try:
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", command],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        return result.stdout, result.stderr, result.returncode
+    except Exception as exc:
+        return "", str(exc), 1
+
+
+@app.get("/device/info")
+async def device_info() -> dict[str, Any]:
+    """Return Windows system information."""
+    if platform.system() != "Windows":
+        raise HTTPException(status_code=400, detail="Device control is Windows-only")
+
+    try:
+        # Simple, fast queries — avoid large nested objects that choke browser JSON parsers
+        cpu_stdout, _, _ = _run_ps(
+            "(Get-Counter '\\Processor(_Total)\\% Processor Time').CounterSamples.CookedValue"
+        )
+        mem_stdout, _, _ = _run_ps(
+            "$t=(Get-CimInstance Win32_OperatingSystem); [math]::Round((($t.TotalVisibleMemorySize-$t.FreePhysicalMemory)/$t.TotalVisibleMemorySize)*100,1)"
+        )
+        uptime_stdout, _, _ = _run_ps(
+            "(Get-Date) - (Get-CimInstance Win32_OperatingSystem).LastBootUpTime | Select-Object -ExpandProperty TotalSeconds"
+        )
+
+        cpu_val: float | None = None
+        if cpu_stdout.strip().replace('.', '').replace('-', '').isdigit():
+            cpu_val = float(cpu_stdout.strip())
+
+        mem_val: float | None = None
+        if mem_stdout.strip().replace('.', '').isdigit():
+            mem_val = float(mem_stdout.strip())
+
+        uptime_val: float | None = None
+        if uptime_stdout.strip().replace('.', '').isdigit():
+            uptime_val = float(uptime_stdout.strip())
+
+        return {
+            "platform": platform.system(),
+            "platform_version": platform.version(),
+            "machine": platform.machine(),
+            "processor": platform.processor(),
+            "cpu_percent": cpu_val,
+            "memory_percent": mem_val,
+            "uptime_seconds": uptime_val,
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.get("/device/processes")
+async def device_processes() -> dict[str, Any]:
+    """Return top 20 processes by CPU usage."""
+    if platform.system() != "Windows":
+        raise HTTPException(status_code=400, detail="Device control is Windows-only")
+
+    try:
+        stdout, stderr, rc = _run_ps(
+            "Get-Process | Sort-Object CPU -Descending | Select-Object -First 20 Name, Id, CPU, WorkingSet | ConvertTo-Json -Compress"
+        )
+        if rc != 0:
+            return {"success": False, "error": stderr.strip()}
+        try:
+            processes = json.loads(stdout)
+            if not isinstance(processes, list):
+                processes = [processes]
+        except json.JSONDecodeError:
+            processes = []
+        return {"success": True, "processes": processes}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.get("/device/disk")
+async def device_disk() -> dict[str, Any]:
+    """Return per-drive disk usage."""
+    if platform.system() != "Windows":
+        raise HTTPException(status_code=400, detail="Device control is Windows-only")
+    try:
+        stdout, stderr, rc = _run_ps(
+            "Get-CimInstance Win32_LogicalDisk | Where-Object {$_.Size -gt 0} | "
+            "Select-Object DeviceID,Size,FreeSpace | ConvertTo-Json -Compress"
+        )
+        if rc != 0:
+            return {"success": False, "error": stderr.strip()}
+        drives = json.loads(stdout)
+        if not isinstance(drives, list):
+            drives = [drives] if drives else []
+        result = []
+        for d in drives:
+            total = d.get("Size", 0)
+            free = d.get("FreeSpace", 0)
+            used = total - free
+            result.append({
+                "device_id": d.get("DeviceID", "?"),
+                "total_gb": round(total / 1024**3, 1),
+                "free_gb": round(free / 1024**3, 1),
+                "used_gb": round(used / 1024**3, 1),
+                "used_percent": round((used / total) * 100, 1) if total else 0,
+            })
+        return {"success": True, "drives": result}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.get("/device/services")
+async def device_services() -> dict[str, Any]:
+    """Return Windows services."""
+    if platform.system() != "Windows":
+        raise HTTPException(status_code=400, detail="Device control is Windows-only")
+    try:
+        stdout, stderr, rc = _run_ps(
+            "Get-Service | Select-Object Name,Status,StartType | ConvertTo-Json -Compress"
+        )
+        if rc != 0:
+            return {"success": False, "error": stderr.strip()}
+        services = json.loads(stdout)
+        if not isinstance(services, list):
+            services = [services] if services else []
+        # Limit to 50, exclude critical Windows services
+        excluded = {"lsass", "csrss", "smss", "services", "winlogon", "svchost"}
+        filtered = [s for s in services if s.get("Name", "").lower() not in excluded][:50]
+        # Map numeric Status and StartType to human-readable strings
+        status_map = {1: "Stopped", 2: "StartPending", 3: "StopPending", 4: "Running", 5: "ContinuePending", 6: "PausePending", 7: "Paused"}
+        start_type_map = {0: "Boot", 1: "System", 2: "Automatic", 3: "Manual", 4: "Disabled"}
+        for s in filtered:
+            s["Status"] = status_map.get(s.get("Status"), str(s.get("Status", "Unknown")))
+            s["StartType"] = start_type_map.get(s.get("StartType"), str(s.get("StartType", "Unknown")))
+        return {"success": True, "services": filtered}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.post("/device/services/{name}/action")
+async def device_service_action(name: str, request: dict[str, Any]) -> dict[str, Any]:
+    """Start, stop, or restart a Windows service."""
+    if platform.system() != "Windows":
+        raise HTTPException(status_code=400, detail="Device control is Windows-only")
+    action = request.get("action", "")
+    if action not in ("start", "stop", "restart"):
+        raise HTTPException(status_code=400, detail="action must be start, stop, or restart")
+    try:
+        ps_cmd = {"start": "Start-Service", "stop": "Stop-Service", "restart": "Restart-Service"}[action]
+        stdout, stderr, rc = _run_ps(f'{ps_cmd} -Name "{name}"')
+        return {
+            "success": rc == 0,
+            "service": name,
+            "action": action,
+            "output": stdout.strip() if rc == 0 else stderr.strip(),
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.get("/device/startup")
+async def device_startup() -> dict[str, Any]:
+    """Return startup applications."""
+    if platform.system() != "Windows":
+        raise HTTPException(status_code=400, detail="Device control is Windows-only")
+    try:
+        stdout, stderr, rc = _run_ps(
+            "Get-CimInstance Win32_StartupCommand | Select-Object Name,Command,Location | ConvertTo-Json -Compress"
+        )
+        if rc != 0:
+            return {"success": False, "error": stderr.strip()}
+        apps = json.loads(stdout)
+        if not isinstance(apps, list):
+            apps = [apps] if apps else []
+        return {"success": True, "apps": apps}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.get("/device/network")
+async def device_network() -> dict[str, Any]:
+    """Return network adapter information."""
+    if platform.system() != "Windows":
+        raise HTTPException(status_code=400, detail="Device control is Windows-only")
+    try:
+        stdout, stderr, rc = _run_ps(
+            "Get-NetAdapter | Where-Object {$_.Status -eq 'Up'} | "
+            "Select-Object Name,Status,LinkSpeed,MacAddress | ConvertTo-Json -Compress"
+        )
+        if rc != 0:
+            return {"success": False, "error": stderr.strip()}
+        adapters = json.loads(stdout)
+        if not isinstance(adapters, list):
+            adapters = [adapters] if adapters else []
+        return {"success": True, "adapters": adapters}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.get("/device/battery")
+async def device_battery() -> dict[str, Any]:
+    """Return battery status."""
+    if platform.system() != "Windows":
+        raise HTTPException(status_code=400, detail="Device control is Windows-only")
+    try:
+        stdout, stderr, rc = _run_ps(
+            "Get-CimInstance Win32_Battery | Select-Object EstimatedChargeRemaining,BatteryStatus | ConvertTo-Json -Compress"
+        )
+        if rc != 0:
+            return {"success": False, "error": stderr.strip()}
+        try:
+            battery = json.loads(stdout)
+            if not isinstance(battery, list):
+                battery = [battery] if battery else []
+        except json.JSONDecodeError:
+            battery = []
+        return {"success": True, "battery": battery}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.post("/device/action")
+async def device_action(request: DeviceControlRequest) -> dict[str, Any]:
+    """Execute a Windows device control action with confirmation gates."""
+    if platform.system() != "Windows":
+        raise HTTPException(status_code=400, detail="Device control is Windows-only")
+
+    action = request.action
+    params = request.params
+    result: dict[str, Any] = {"action": action, "success": False}
+
+    try:
+        match action:
+            case "open_app":
+                app = params.get("app", "")
+                if not app:
+                    raise HTTPException(status_code=400, detail="Missing 'app' parameter")
+                stdout, stderr, rc = _run_ps(f'Start-Process "{app}"')
+                result["success"] = rc == 0
+                result["output"] = stdout.strip() if rc == 0 else stderr.strip()
+
+            case "notify":
+                title = params.get("title", "Jarvis")
+                body = params.get("body", "")
+                stdout, stderr, rc = _run_ps(
+                    f'Add-Type -AssemblyName System.Windows.Forms; '
+                    f'[System.Windows.Forms.MessageBox]::Show("{body}", "{title}")'
+                )
+                result["success"] = rc == 0
+                result["output"] = stdout.strip() if rc == 0 else stderr.strip()
+
+            case "volume":
+                level = int(params.get("level", 50))
+                presses = max(0, min(50, level // 2))
+                stdout, stderr, rc = _run_ps(
+                    f'$wsh = New-Object -ComObject WScript.Shell; '
+                    f'1..50 | ForEach-Object {{ $wsh.SendKeys([char]174) }}; '
+                    f'1..{presses} | ForEach-Object {{ $wsh.SendKeys([char]175) }}'
+                )
+                result["success"] = rc == 0
+                result["level"] = level
+                result["output"] = stdout.strip() if rc == 0 else stderr.strip()
+
+            case "mute":
+                toggle = params.get("toggle", True)
+                stdout, stderr, rc = _run_ps(
+                    f'$wsh = New-Object -ComObject WScript.Shell; '
+                    f'$wsh.SendKeys([char]173)'
+                )
+                result["success"] = rc == 0
+                result["toggled"] = toggle
+                result["output"] = stdout.strip() if rc == 0 else stderr.strip()
+
+            case "brightness":
+                level = int(params.get("level", 50))
+                stdout, stderr, rc = _run_ps(
+                    f'$brightness = {level}; '
+                    f'Get-CimInstance -Namespace root/WMI -ClassName WmiMonitorBrightnessMethods | '
+                    f'Invoke-CimMethod -MethodName WmiSetBrightness -Arguments @{{Brightness=$brightness; Timeout=1}}'
+                )
+                result["success"] = rc == 0
+                result["level"] = level
+                result["output"] = stdout.strip() if rc == 0 else stderr.strip()
+
+            case "lock":
+                stdout, stderr, rc = _run_ps('rundll32.exe user32.dll,LockWorkStation')
+                result["success"] = rc == 0
+                result["output"] = stdout.strip() if rc == 0 else stderr.strip()
+
+            case "sleep":
+                stdout, stderr, rc = _run_ps('rundll32.exe powrprof.dll,SetSuspendState 0,1,0')
+                result["success"] = rc == 0
+                result["output"] = stdout.strip() if rc == 0 else stderr.strip()
+
+            case "shutdown":
+                if not params.get("confirm"):
+                    raise HTTPException(status_code=400, detail="Shutdown requires confirm=true")
+                stdout, stderr, rc = _run_ps('Stop-Computer -Force')
+                result["success"] = rc == 0
+                result["output"] = stdout.strip() if rc == 0 else stderr.strip()
+
+            case "restart":
+                if not params.get("confirm"):
+                    raise HTTPException(status_code=400, detail="Restart requires confirm=true")
+                stdout, stderr, rc = _run_ps('Restart-Computer -Force')
+                result["success"] = rc == 0
+                result["output"] = stdout.strip() if rc == 0 else stderr.strip()
+
+            case "screenshot":
+                path = params.get("path", "C:/Users/sahii/screenshot.png")
+                stdout, stderr, rc = _run_ps(
+                    f'Add-Type -AssemblyName System.Windows.Forms; '
+                    f'$screen = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds; '
+                    f'$bitmap = New-Object System.Drawing.Bitmap($screen.Width, $screen.Height); '
+                    f'$graphics = [System.Drawing.Graphics]::FromImage($bitmap); '
+                    f'$graphics.CopyFromScreen($screen.Location, [System.Drawing.Point]::Empty, $screen.Size); '
+                    f'$bitmap.Save("{path}"); '
+                    f'$graphics.Dispose(); $bitmap.Dispose()'
+                )
+                result["success"] = rc == 0
+                result["path"] = path
+                result["output"] = stdout.strip() if rc == 0 else stderr.strip()
+
+            case "clipboard":
+                operation = params.get("operation", "get")
+                if operation == "get":
+                    stdout, stderr, rc = _run_ps(
+                        'Add-Type -AssemblyName System.Windows.Forms; '
+                        '[System.Windows.Forms.Clipboard]::GetText()'
+                    )
+                    result["success"] = rc == 0
+                    result["text"] = stdout.strip() if rc == 0 else None
+                    result["output"] = stdout.strip() if rc == 0 else stderr.strip()
+                elif operation == "set":
+                    text = params.get("text", "")
+                    stdout, stderr, rc = _run_ps(
+                        f'Add-Type -AssemblyName System.Windows.Forms; '
+                        f'[System.Windows.Forms.Clipboard]::SetText("{text}")'
+                    )
+                    result["success"] = rc == 0
+                    result["output"] = stdout.strip() if rc == 0 else stderr.strip()
+                else:
+                    raise HTTPException(status_code=400, detail="clipboard operation must be 'get' or 'set'")
+
+            case "wifi":
+                sub_action = params.get("sub_action", "list")
+                if sub_action == "list":
+                    stdout, stderr, rc = _run_ps(
+                        'netsh wlan show profiles | Select-String ":" | ForEach-Object { ($_ -split ":")[1].Trim() } | ConvertTo-Json -Compress'
+                    )
+                    result["success"] = rc == 0
+                    try:
+                        networks = json.loads(stdout)
+                        if not isinstance(networks, list):
+                            networks = [networks] if networks else []
+                    except json.JSONDecodeError:
+                        networks = []
+                    result["networks"] = networks
+                    result["output"] = stdout.strip() if rc == 0 else stderr.strip()
+                elif sub_action == "connect":
+                    ssid = params.get("ssid", "")
+                    if not ssid:
+                        raise HTTPException(status_code=400, detail="Missing 'ssid' parameter for wifi connect")
+                    stdout, stderr, rc = _run_ps(f'netsh wlan connect name="{ssid}"')
+                    result["success"] = rc == 0
+                    result["output"] = stdout.strip() if rc == 0 else stderr.strip()
+                else:
+                    raise HTTPException(status_code=400, detail="wifi sub_action must be 'list' or 'connect'")
+
+            case "bluetooth":
+                sub_action = params.get("sub_action", "list")
+                if sub_action == "list":
+                    stdout, stderr, rc = _run_ps(
+                        'Get-PnpDevice -Class Bluetooth | Where-Object {{ $_.FriendlyName -like "*" }} | '
+                        'Select-Object Name, Status, InstanceId | ConvertTo-Json -Compress'
+                    )
+                    result["success"] = rc == 0
+                    try:
+                        devices = json.loads(stdout)
+                        if not isinstance(devices, list):
+                            devices = [devices] if devices else []
+                    except json.JSONDecodeError:
+                        devices = []
+                    result["devices"] = devices
+                    result["output"] = stdout.strip() if rc == 0 else stderr.strip()
+                else:
+                    raise HTTPException(status_code=400, detail="bluetooth sub_action must be 'list'")
+
+            case "list_processes":
+                stdout, stderr, rc = _run_ps(
+                    'Get-Process | Select-Object Name, Id, CPU, WorkingSet | ConvertTo-Json -Compress'
+                )
+                result["success"] = rc == 0
+                try:
+                    processes = json.loads(stdout)
+                    if not isinstance(processes, list):
+                        processes = [processes]
+                except json.JSONDecodeError:
+                    processes = []
+                result["processes"] = processes
+                result["output"] = stdout.strip() if rc == 0 else stderr.strip()
+
+            case "check_updates":
+                stdout, stderr, rc = _run_ps(
+                    '$session = New-Object -ComObject Microsoft.Update.Session; '
+                    '$searcher = $session.CreateUpdateSearcher(); '
+                    '$result = $searcher.Search("IsInstalled=0"); '
+                    '$result.Updates | Select-Object Title, IsDownloaded | ConvertTo-Json -Compress'
+                )
+                if rc != 0:
+                    result["success"] = True
+                    result["pending"] = 0
+                    result["updates"] = []
+                    result["note"] = "Update check unavailable"
+                    result["output"] = stderr.strip()
+                else:
+                    try:
+                        updates = json.loads(stdout)
+                        if not isinstance(updates, list):
+                            updates = [updates] if updates else []
+                    except json.JSONDecodeError:
+                        updates = []
+                    result["success"] = True
+                    result["pending"] = len(updates)
+                    result["updates"] = [{"title": u.get("Title", ""), "downloaded": u.get("IsDownloaded", False)} for u in updates]
+                    result["output"] = stdout.strip()
+
+            case "kill_process":
+                if not params.get("confirm"):
+                    raise HTTPException(status_code=400, detail="kill_process requires confirm=true")
+                pid = params.get("pid")
+                name = params.get("name")
+                if pid:
+                    stdout, stderr, rc = _run_ps(f'Stop-Process -Id {pid} -Force')
+                elif name:
+                    stdout, stderr, rc = _run_ps(f'Stop-Process -Name "{name}" -Force')
+                else:
+                    raise HTTPException(status_code=400, detail="Missing 'pid' or 'name' parameter")
+                result["success"] = rc == 0
+                result["output"] = stdout.strip() if rc == 0 else stderr.strip()
+
+            case "run_command":
+                command = params.get("command", "")
+                if not command:
+                    raise HTTPException(status_code=400, detail="Missing 'command' parameter")
+                stdout, stderr, rc = _run_ps(command)
+                result["success"] = rc == 0
+                result["output"] = stdout.strip() if rc == 0 else stderr.strip()
+                result["returncode"] = rc
+
+            case _:
+                raise HTTPException(status_code=400, detail=f"Unknown action: {action}")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        result["error"] = str(exc)
+
+    return result
+
+
+@app.get("/device/updates")
+async def device_updates() -> dict[str, Any]:
+    """Check for pending Windows updates."""
+    if platform.system() != "Windows":
+        raise HTTPException(status_code=400, detail="Device control is Windows-only")
+
+    stdout, stderr, rc = _run_ps(
+        '$session = New-Object -ComObject Microsoft.Update.Session; '
+        '$searcher = $session.CreateUpdateSearcher(); '
+        '$result = $searcher.Search("IsInstalled=0"); '
+        '$result.Updates | Select-Object Title, IsDownloaded | ConvertTo-Json -Compress'
+    )
+    if rc != 0:
+        return {"success": True, "pending": 0, "updates": [], "note": "Update check unavailable"}
+    try:
+        updates = json.loads(stdout)
+        if not isinstance(updates, list):
+            updates = [updates] if updates else []
+    except json.JSONDecodeError:
+        updates = []
+    return {
+        "success": True,
+        "pending": len(updates),
+        "updates": [{"title": u.get("Title", ""), "downloaded": u.get("IsDownloaded", False)} for u in updates],
+    }
+
+
+@app.get("/device/profiler")
+async def device_profiler() -> dict[str, Any]:
+    """Return per-process CPU and memory snapshot."""
+    if platform.system() != "Windows":
+        raise HTTPException(status_code=400, detail="Device control is Windows-only")
+
+    stdout, stderr, rc = _run_ps(
+        'Get-Process | Select-Object Name, Id, CPU, WorkingSet | ConvertTo-Json -Compress'
+    )
+    if rc != 0:
+        return {"success": False, "error": stderr.strip()}
+    try:
+        processes = json.loads(stdout)
+        if not isinstance(processes, list):
+            processes = [processes] if processes else []
+    except json.JSONDecodeError:
+        processes = []
+    # Convert WorkingSet from bytes to MB
+    for p in processes:
+        ws = p.get("WorkingSet")
+        if isinstance(ws, (int, float)):
+            p["WorkingSetMB"] = round(ws / 1024 / 1024, 2)
+    return {"success": True, "processes": processes}
+
+
+@app.get("/device/events")
+async def device_events() -> dict[str, Any]:
+    """Read recent Windows Event Log entries (last 10 errors/warnings)."""
+    if platform.system() != "Windows":
+        raise HTTPException(status_code=400, detail="Device control is Windows-only")
+
+    stdout, stderr, rc = _run_ps(
+        "Get-WinEvent -FilterHashtable @{LogName='System'; Level=1,2,3; StartTime=(Get-Date).AddHours(-24)} -MaxEvents 10 | "
+        "Select-Object TimeCreated, LevelDisplayName, Message | ConvertTo-Json -Compress"
+    )
+    if rc != 0:
+        return {"success": False, "error": "Event log access denied"}
+    try:
+        events = json.loads(stdout)
+        if not isinstance(events, list):
+            events = [events] if events else []
+    except json.JSONDecodeError:
+        events = []
+    return {"success": True, "events": events}
+
+
+@app.get("/device/stream")
+async def device_stream() -> StreamingResponse:
+    """SSE stream of live device metrics (CPU, RAM, Disk, Network) every second."""
+    if platform.system() != "Windows":
+        raise HTTPException(status_code=400, detail="Device control is Windows-only")
+
+    async def event_generator() -> AsyncGenerator[str, None]:
+        while True:
+            try:
+                # CPU + Memory
+                cpu = psutil.cpu_percent(interval=None)
+                mem = psutil.virtual_memory().percent
+                # Disk
+                disk = psutil.disk_usage('/').percent
+                # Network
+                net = psutil.net_io_counters()
+                payload = {
+                    "cpu": round(cpu, 1),
+                    "memory": round(mem, 1),
+                    "disk": round(disk, 1),
+                    "net_sent": net.bytes_sent,
+                    "net_recv": net.bytes_recv,
+                    "timestamp": time.time(),
+                }
+                yield f"data: {json.dumps(payload)}\n\n"
+            except Exception:
+                yield f"data: {json.dumps({'error': 'metrics unavailable'})}\n\n"
+            await asyncio.sleep(1)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        },
+    )
+
+
+@app.get("/device/cores")
+async def device_cores() -> dict[str, Any]:
+    """Per-core CPU usage percentages."""
+    if platform.system() != "Windows":
+        raise HTTPException(status_code=400, detail="Device control is Windows-only")
+    try:
+        cores = psutil.cpu_percent(interval=0.5, percpu=True)
+        return {"success": True, "cores": [round(c, 1) for c in cores]}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 
 # Static dashboard files

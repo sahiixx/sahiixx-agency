@@ -136,6 +136,26 @@ def _make_openmontage(config, network_policy, audit_logger, task):
     return adapter, task.payload
 
 
+def _make_linkedin(config, network_policy, audit_logger, task):
+    from sahiixx_agency.adapters.social.linkedin_adapter import LinkedInAdapter
+
+    adapter = LinkedInAdapter(
+        network_policy=network_policy,
+        audit_logger=audit_logger,
+    )
+    return adapter, task.payload
+
+
+def _make_instagram(config, network_policy, audit_logger, task):
+    from sahiixx_agency.adapters.social.instagram_adapter import InstagramAdapter
+
+    adapter = InstagramAdapter(
+        network_policy=network_policy,
+        audit_logger=audit_logger,
+    )
+    return adapter, task.payload
+
+
 _SPECIALIZED_ADAPTERS: dict[
     str,
     Callable[[AgencyConfig, NetworkPolicy, AuditLogger, AgencyTask], tuple[Any, dict[str, Any]]],
@@ -150,6 +170,8 @@ _SPECIALIZED_ADAPTERS: dict[
     "letta-code": _make_letta_code,
     "letta_code": _make_letta_code,
     "openmontage": _make_openmontage,
+    "linkedin": _make_linkedin,
+    "instagram": _make_instagram,
 }
 
 

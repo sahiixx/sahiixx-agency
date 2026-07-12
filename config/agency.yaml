@@ -310,6 +310,31 @@ ecosystem:
     priority: 2
     tags: [video, montage, openmontage, remotion, cinematic, content]
 
+  # ── Social Media Adapters ──
+  linkedin:
+    repo: linkedin-adapter
+    owner: sahiixx
+    url: https://github.com/sahiixx/linkedin-adapter
+    role: "LinkedIn API integration — post content, analytics, company pages"
+    bus_channel: "social.*"
+    protocol: api
+    priority: 2
+    tags: [social, linkedin, posting, analytics, professional]
+    adapter_config:
+      scopes: ["w_member_social", "r_organization_social", "rw_organization"]
+
+  instagram:
+    repo: instagram-adapter
+    owner: sahiixx
+    url: https://github.com/sahiixx/instagram-adapter
+    role: "Instagram API integration — post images/carousels/reels, analytics"
+    bus_channel: "social.*"
+    protocol: api
+    priority: 2
+    tags: [social, instagram, posting, reels, carousel, media]
+    adapter_config:
+      scopes: ["instagram_basic", "instagram_content_publish", "pages_show_list"]
+
 # ─── Routing Rules ─────────────────────────────────────────────
 routing_rules:
   - pattern: "t3mp3st|red.team|offensive|0-day|zero.day|exploit|pentest|recon|scan|vuln|vulnerability|security|cve|hunt|threat|attack|ctf|pwn|bug.bounty|osint"
@@ -342,4 +367,8 @@ routing_rules:
     target: youtube_agent
   - pattern: "obsidian|second.brain|vault|wiki|notes"
     target: claude_obsidian
+  - pattern: "linkedin|professional.network|company.page|b2b.post"
+    target: linkedin
+  - pattern: "instagram|insta|reel|carousel|ig.post|ig.story"
+    target: instagram
 

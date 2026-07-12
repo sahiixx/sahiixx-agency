@@ -1,141 +1,205 @@
-import { useState, useEffect, useRef } from 'react'
-import { Mic, Volume2, Loader2, Command, Play } from 'lucide-react'
-import { useVoiceCommand } from '../hooks/useVoiceCommand'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { Mic, MicOff, Loader2, Radio } from 'lucide-react'
 
-export function VoiceCommandPanel() {
-  const { state, transcript, response, error, startListening, stopListening, executeCommand } = useVoiceCommand()
+type VoiceState = 'idle' | 'listening' | 'processing' | 'error'
+
+interface VoiceCommandPanelProps {
+  onCommand?: (command: string) => void
+  compact?: boolean
+}
+
+interface SpeechRecognitionEvent {
+  resultIndex: number
+  results: {
+    [index: number]: {
+      [index: number]: { transcript: string }
+      isFinal: boolean
+    }
+    length: number
+  }
+}
+
+interface SpeechRecognition {
+  continuous: boolean
+  interimResults: boolean
+  lang: string
+  onresult: ((event: SpeechRecognitionEvent) => void) | null
+  onerror: ((event: { error: string }) => void) | null
+  onend: (() => void) | null
+  start(): void
+  stop(): void
+}
+
+interface SpeechRecognitionStatic {
+  new (): SpeechRecognition
+}
+
+interface WindowWithSpeechRecognition extends Window {
+  SpeechRecognition?: SpeechRecognitionStatic
+  webkitSpeechRecognition?: SpeechRecognitionStatic
+}
+
+const stateConfig: Record<VoiceState, { icon: React.ElementType; color: string; label: string }> = {
+  idle: { icon: Mic, color: 'text-accent-cyan', label: 'Tap to speak' },
+  listening: { icon: MicOff, color: 'text-accent-red', label: 'Listening...' },
+  processing: { icon: Loader2, color: 'text-accent-amber', label: 'Processing...' },
+  error: { icon: MicOff, color: 'text-red-400', label: 'Error' },
+}
+
+function getSpeechRecognition(): SpeechRecognitionStatic | undefined {
+  if (typeof window === 'undefined') return undefined
+  const win = window as unknown as WindowWithSpeechRecognition
+  return win.SpeechRecognition || win.webkitSpeechRecognition
+}
+
+export function VoiceCommandPanel({ onCommand, compact = false }: VoiceCommandPanelProps) {
+  const [state, setState] = useState<VoiceState>('idle')
+  const [transcript, setTranscript] = useState('')
   const [waveform, setWaveform] = useState<number[]>(Array(20).fill(0))
+  const recognitionRef = useRef<SpeechRecognition | null>(null)
   const animationRef = useRef<number>(0)
+
+  const resetWaveform = useCallback(() => {
+    setWaveform(Array(20).fill(0.05))
+  }, [])
 
   // Simulated waveform animation when listening
   useEffect(() => {
-    if (state === 'listening') {
-      const animate = () => {
-        setWaveform(prev => prev.map(() => Math.random() * 0.8 + 0.1))
-        animationRef.current = requestAnimationFrame(animate)
-      }
+    if (state !== 'listening') return
+
+    const animate = () => {
+      setWaveform((prev) => prev.map(() => Math.random() * 0.8 + 0.1))
       animationRef.current = requestAnimationFrame(animate)
-    } else {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current)
-      }
-      setWaveform(Array(20).fill(0.05))
     }
+    animationRef.current = requestAnimationFrame(animate)
+
     return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current)
-      }
+      if (animationRef.current) cancelAnimationFrame(animationRef.current)
     }
   }, [state])
 
-  const stateConfig = {
-    idle: { color: '#525252', text: 'Hold Space to Speak', icon: <Mic className="h-5 w-5" /> },
-    listening: { color: '#FF1A1A', text: 'Listening...', icon: <Mic className="h-5 w-5 animate-pulse" /> },
-    processing: { color: '#00F0FF', text: 'Processing...', icon: <Loader2 className="h-5 w-5 animate-spin" /> },
-    speaking: { color: '#00FF66', text: 'Speaking...', icon: <Volume2 className="h-5 w-5 animate-pulse" /> },
-    executing: { color: '#EAB308', text: 'Executing...', icon: <Play className="h-5 w-5 animate-pulse" /> },
+  useEffect(() => {
+    if (state !== 'listening') {
+      window.setTimeout(resetWaveform, 0)
+    }
+  }, [state, resetWaveform])
+
+  const startListening = () => {
+    const SR = getSpeechRecognition()
+    if (!SR) {
+      setState('error')
+      return
+    }
+
+    setState('listening')
+    setTranscript('')
+
+    const recognition = new SR()
+    recognition.continuous = false
+    recognition.interimResults = true
+    recognition.lang = 'en-US'
+
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      const last = event.results[event.results.length - 1]
+      if (last.isFinal) {
+        const text = last[0].transcript.trim()
+        setTranscript(text)
+        if (text) {
+          setState('processing')
+          onCommand?.(text)
+          window.setTimeout(() => setState('idle'), 1500)
+        } else {
+          setState('idle')
+        }
+      }
+    }
+
+    recognition.onerror = () => {
+      setState('error')
+      window.setTimeout(() => setState('idle'), 2000)
+    }
+
+    recognition.onend = () => {
+      setState('idle')
+    }
+
+    recognitionRef.current = recognition
+    try { recognition.start() } catch { /* already started */ }
   }
 
-  const config = stateConfig[state]
+  const stopListening = () => {
+    try { recognitionRef.current?.stop() } catch { /* already stopped */ }
+    recognitionRef.current = null
+    setState('idle')
+  }
+
+  const toggle = () => {
+    if (state === 'listening') stopListening()
+    else startListening()
+  }
+
+  const { icon: Icon, color, label } = stateConfig[state]
+  const isListening = state === 'listening'
+  const isProcessing = state === 'processing'
+
+  if (compact) {
+    return (
+      <button
+        onClick={toggle}
+        className={`relative p-2 rounded-lg transition-colors ${
+          isListening ? 'bg-accent-red/20 text-accent-red' : 'bg-white/5 hover:bg-white/10 text-[var(--text-muted)]'
+        }`}
+        title={label}
+      >
+        {isProcessing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Icon className={`h-5 w-5 ${color}`} />}
+        {isListening && (
+          <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-accent-red animate-pulse" />
+        )}
+      </button>
+    )
+  }
 
   return (
-    <div className="jarvis-card corner-brackets p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-2">
-        <Command className="h-4 w-4 text-jarvis-cyan" />
-        <span className="text-xs font-display uppercase tracking-wider text-jarvis-text-secondary">
-          Jarvis Voice Interface
-        </span>
-        <div className="live-pulse" style={{ '--pulse-color': config.color } as React.CSSProperties} />
+    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Radio className="h-4 w-4 text-accent-cyan" />
+          <span className="text-sm font-semibold text-[var(--text-primary)]">Voice Command</span>
+        </div>
+        <div className="text-xs text-[var(--text-muted)]">{label}</div>
       </div>
 
-      {/* Waveform visualization */}
-      <div className="flex items-center justify-center gap-1 h-24">
-        {waveform.map((height, i) => (
+      <div className="h-12 flex items-center gap-0.5">
+        {waveform.map((amp, i) => (
           <div
             key={i}
-            className="w-2 rounded-full transition-all duration-100"
+            className="flex-1 rounded-full transition-all duration-75"
             style={{
-              height: `${height * 100}%`,
-              backgroundColor: config.color,
-              boxShadow: `0 0 8px ${config.color}66`,
-              opacity: state === 'idle' ? 0.3 : 1,
+              height: `${amp * 100}%`,
+              backgroundColor: isListening ? 'var(--accent-red)' : 'var(--accent-cyan)',
+              opacity: isListening ? 1 : 0.3,
             }}
           />
         ))}
       </div>
 
-      {/* Status */}
-      <div className="text-center">
-        <div
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-full border text-xs font-mono uppercase tracking-wider"
-          style={{
-            borderColor: `${config.color}66`,
-            color: config.color,
-            backgroundColor: `${config.color}11`,
-          }}
-        >
-          {config.icon}
-          {config.text}
-        </div>
-      </div>
-
-      {/* Transcript */}
       {transcript && (
-        <div className="space-y-2">
-          <div className="text-[10px] text-jarvis-text-muted uppercase font-display tracking-wider">Transcript</div>
-          <div className="p-3 rounded bg-white/5 border border-white/10 font-mono text-sm text-jarvis-text-primary">
-            {transcript}
-          </div>
+        <div className="text-xs text-[var(--text-muted)] bg-white/5 rounded p-2">
+          “{transcript}”
         </div>
       )}
 
-      {/* Response */}
-      {response && (
-        <div className="space-y-2">
-          <div className="text-[10px] text-jarvis-text-muted uppercase font-display tracking-wider">Response</div>
-          <div className="p-3 rounded bg-jarvis-green/10 border border-jarvis-green/30 font-mono text-sm text-jarvis-green">
-            {response}
-          </div>
-        </div>
-      )}
-
-      {/* Error */}
-      {error && (
-        <div className="p-3 rounded bg-jarvis-red/10 border border-jarvis-red/30 font-mono text-sm text-jarvis-red">
-          {error}
-        </div>
-      )}
-
-      {/* Controls */}
-      <div className="flex items-center justify-center gap-4">
-        <button
-          onMouseDown={startListening}
-          onMouseUp={stopListening}
-          onTouchStart={startListening}
-          onTouchEnd={stopListening}
-          className="flex items-center gap-2 px-6 py-3 rounded-lg border-2 border-jarvis-cyan/50 text-jarvis-cyan hover:bg-jarvis-cyan/20 hover:border-jarvis-cyan transition-all active:scale-95"
-        >
-          <Mic className="h-5 w-5" />
-          <span className="text-xs font-display uppercase tracking-wider">Hold to Speak</span>
-        </button>
-      </div>
-
-      {/* Quick commands */}
-      <div className="space-y-2">
-        <div className="text-[10px] text-jarvis-text-muted uppercase font-display tracking-wider">Quick Commands</div>
-        <div className="flex flex-wrap gap-2">
-          {['System status', 'Kill process', 'Restart service', 'Check updates'].map((cmd) => (
-            <button
-              key={cmd}
-              onClick={() => executeCommand(cmd)}
-              className="px-3 py-1.5 rounded border border-white/10 text-xs font-mono text-jarvis-text-secondary hover:border-jarvis-cyan/50 hover:text-jarvis-cyan transition-colors"
-            >
-              {cmd}
-            </button>
-          ))}
-        </div>
-      </div>
+      <button
+        onClick={toggle}
+        className={`w-full py-2.5 rounded-lg flex items-center justify-center gap-2 font-medium transition-colors ${
+          isListening
+            ? 'bg-accent-red text-white hover:bg-accent-red/90'
+            : 'bg-accent-cyan text-white hover:bg-accent-cyan/90'
+        }`}
+      >
+        {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon className="h-4 w-4" />}
+        {isListening ? 'Stop Listening' : isProcessing ? 'Processing...' : 'Start Listening'}
+      </button>
     </div>
   )
 }

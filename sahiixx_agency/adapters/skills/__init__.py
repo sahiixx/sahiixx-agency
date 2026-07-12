@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from sahiixx_agency.adapters.base import BaseAdapter
 from sahiixx_agency.adapters.skills.gcc_outbound import GccOutboundSkillAdapter
 
 
-class SkillsAdapter(BaseAdapter):
+class SkillsAdapter:
     """Router adapter that selects a skill sub-adapter by intent/skill name."""
 
     def __init__(self, module: object | None = None) -> None:

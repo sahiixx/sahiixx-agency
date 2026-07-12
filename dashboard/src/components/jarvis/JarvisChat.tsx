@@ -7,7 +7,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Send, Bot, User, Zap, Activity } from 'lucide-react';
 import { VoiceControl } from './VoiceControl';
 import { ShortcutsHelp } from './ShortcutsHelp';
-import { useKeyboardShortcuts, JARVIS_SHORTCUTS } from '@/hooks/useKeyboardShortcuts';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { JARVIS_SHORTCUTS } from '@/hooks/useKeyboardShortcuts';
 
 interface Message {
   id: string;

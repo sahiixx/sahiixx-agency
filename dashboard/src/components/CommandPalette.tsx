@@ -24,11 +24,17 @@ export function CommandPalette({ open, onClose, items }: CommandPaletteProps) {
     item.label.toLowerCase().includes(query.toLowerCase())
   )
 
+  // Reset query/index when palette opens
   useEffect(() => {
     if (open) {
-      setQuery('')
-      setSelectedIndex(0)
-      setTimeout(() => inputRef.current?.focus(), 50)
+      // This is a deliberate reset tied to the open prop; using a microtask avoids synchronous
+      // setState in the effect body while still clearing the input before focus.
+      const timeoutId = window.setTimeout(() => {
+        setQuery('')
+        setSelectedIndex(0)
+        inputRef.current?.focus()
+      }, 0)
+      return () => window.clearTimeout(timeoutId)
     }
   }, [open])
 

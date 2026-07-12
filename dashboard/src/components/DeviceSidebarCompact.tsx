@@ -1,6 +1,18 @@
 import { useState, useEffect } from 'react'
 import { Cpu, HardDrive, Clock, Activity, Zap } from 'lucide-react'
 
+interface DiskUsageEntry {
+  used: number
+  free: number
+}
+
+interface DeviceInfoData {
+  cpu_percent?: number
+  memory_percent?: number
+  uptime_seconds?: number
+  disk_usage?: Record<string, DiskUsageEntry>
+}
+
 interface DeviceSidebarCompactProps {
   cpu: number | null
   memory: number | null
@@ -23,6 +35,48 @@ function getStatusGlow(value: number | null): string {
   return 'rgba(0, 240, 255, 0.3)'
 }
 
+interface MetricCardProps {
+  icon: React.ReactNode
+  label: string
+  value: number | null
+  suffix?: string
+}
+
+function MetricCard({ icon, label, value, suffix = '%' }: MetricCardProps) {
+  const color = getStatusColor(value)
+  const glow = getStatusGlow(value)
+  return (
+    <div
+      className="jarvis-card corner-brackets p-3 space-y-2 hover:border-jarvis-cyan/30 transition-all duration-300"
+      style={{ '--accent-color': color } as React.CSSProperties}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5 text-[10px] text-jarvis-text-muted uppercase font-display tracking-wider">
+          {icon}
+          {label}
+        </div>
+        <div className="live-pulse" style={{ '--pulse-color': color } as React.CSSProperties} />
+      </div>
+      <div
+        className="text-xl font-mono font-bold text-glow"
+        style={{ color, '--glow-color': glow } as React.CSSProperties}
+      >
+        {value != null ? `${value.toFixed(1)}${suffix}` : '—'}
+      </div>
+      <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
+        <div
+          className="h-full rounded-full transition-all duration-500 progress-glow"
+          style={{
+            width: `${Math.min(value ?? 0, 100)}%`,
+            backgroundColor: color,
+            '--bar-color': glow,
+          } as React.CSSProperties}
+        />
+      </div>
+    </div>
+  )
+}
+
 export function DeviceSidebarCompact({ cpu, memory, disk, uptime, processes }: DeviceSidebarCompactProps) {
   const [liveCpu, setLiveCpu] = useState<number | null>(cpu)
   const [liveMem, setLiveMem] = useState<number | null>(memory)
@@ -34,14 +88,15 @@ export function DeviceSidebarCompact({ cpu, memory, disk, uptime, processes }: D
       try {
         const res = await fetch('/api/device/info')
         if (res.ok) {
-          const data = await res.json()
+          const data: DeviceInfoData = await res.json()
           setLiveCpu(data.cpu_percent ?? null)
           setLiveMem(data.memory_percent ?? null)
           setLiveUptime(data.uptime_seconds ?? 0)
-          const diskPercent = data.disk_usage
+          const entries = data.disk_usage ? Object.values(data.disk_usage) : []
+          const diskPercent = entries.length
             ? Math.round(
-                Object.values(data.disk_usage).reduce((sum: number, d: any) => sum + (d.used / (d.used + d.free)), 0) /
-                  Object.keys(data.disk_usage).length * 100
+                entries.reduce((sum: number, d: DiskUsageEntry) => sum + (d.used / (d.used + d.free)), 0) /
+                  entries.length * 100
               )
             : 0
           setLiveDisk(diskPercent)
@@ -57,51 +112,6 @@ export function DeviceSidebarCompact({ cpu, memory, disk, uptime, processes }: D
     const h = Math.floor(seconds / 3600)
     const m = Math.floor((seconds % 3600) / 60)
     return `${h.toString().padStart(2, '0')}h ${m.toString().padStart(2, '0')}m`
-  }
-
-  const MetricCard = ({
-    icon,
-    label,
-    value,
-    suffix = '%',
-  }: {
-    icon: React.ReactNode
-    label: string
-    value: number | null
-    suffix?: string
-  }) => {
-    const color = getStatusColor(value)
-    const glow = getStatusGlow(value)
-    return (
-      <div
-        className="jarvis-card corner-brackets p-3 space-y-2 hover:border-jarvis-cyan/30 transition-all duration-300"
-        style={{ '--accent-color': color } as React.CSSProperties}
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-[10px] text-jarvis-text-muted uppercase font-display tracking-wider">
-            {icon}
-            {label}
-          </div>
-          <div className="live-pulse" style={{ '--pulse-color': color } as React.CSSProperties} />
-        </div>
-        <div
-          className="text-xl font-mono font-bold text-glow"
-          style={{ color, '--glow-color': glow } as React.CSSProperties}
-        >
-          {value != null ? `${value.toFixed(1)}${suffix}` : '—'}
-        </div>
-        <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
-          <div
-            className="h-full rounded-full transition-all duration-500 progress-glow"
-            style={{
-              width: `${Math.min(value ?? 0, 100)}%`,
-              backgroundColor: color,
-              '--bar-color': glow,
-            } as React.CSSProperties}
-          />
-        </div>
-      </div>
-    )
   }
 
   return (

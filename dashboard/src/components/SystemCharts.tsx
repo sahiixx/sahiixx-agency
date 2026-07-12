@@ -16,6 +16,10 @@ const CHART_COLORS = {
   netRecv: '#3B82F6',
 }
 
+interface DeviceDataPoint {
+  [key: string]: number
+}
+
 function ChartCard({
   title,
   color,
@@ -29,12 +33,14 @@ function ChartCard({
   color: string
   gradientId: string
   dataKey: string
-  data: any[]
+  data: DeviceDataPoint[]
   formatter?: (v: number) => string
   secondary?: { key: string; color: string; gradientId: string; name: string }
 }) {
   const hasData = data.length >= 2
-  const current = hasData ? data[data.length - 1][dataKey] : 0
+  const current = hasData ? data[data.length - 1][dataKey] ?? 0 : 0
+
+  const safeCurrent = typeof current === 'number' ? current : 0
 
   // Status color based on value
   const getStatusColor = (value: number) => {
@@ -43,7 +49,7 @@ function ChartCard({
     return color
   }
 
-  const statusColor = hasData ? getStatusColor(current) : color
+  const statusColor = hasData ? getStatusColor(safeCurrent) : color
 
   return (
     <div
@@ -63,7 +69,7 @@ function ChartCard({
             className="text-lg font-mono font-bold text-glow"
             style={{ color: statusColor, '--glow-color': `${statusColor}66` } as React.CSSProperties}
           >
-            {formatter ? formatter(current) : `${current}%`}
+            {formatter ? formatter(safeCurrent) : `${safeCurrent}%`}
           </div>
         )}
       </div>

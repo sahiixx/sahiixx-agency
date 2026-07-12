@@ -20,6 +20,7 @@ from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Red
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from sahiixx_agency.api.skills import router as skills_router
 from sahiixx_agency.core.engine import AgencyEngine
 from sahiixx_agency.core.models import (
     AgencyConfig,
@@ -93,6 +94,9 @@ app.add_middleware(
 
 # Jarvis 100x — AI assistant endpoints
 app.include_router(jarvis_router)
+
+# GCC Outbound skills API (already at /api via router prefix, so include without additional prefix)
+app.include_router(skills_router)
 
 
 # Mutating paths that are invoked by external services and therefore cannot

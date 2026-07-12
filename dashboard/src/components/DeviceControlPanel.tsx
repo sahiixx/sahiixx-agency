@@ -264,6 +264,11 @@ export function DeviceControlPanel() {
         const raw = await res.json()
         const drives: Drive[] = raw.drives || []
         setDiskInfo(drives)
+        // Update disk history from drive data
+        const diskPercent = drives.length
+          ? Math.round(drives.reduce((sum, d) => sum + (d.used_gb / d.total_gb), 0) / drives.length * 100)
+          : 0
+        setDiskHistory((prev) => [...prev, diskPercent].slice(-30))
       }
     } catch (err) {
       console.error('fetchDisk error:', err)
@@ -312,7 +317,7 @@ export function DeviceControlPanel() {
       if (res.ok) {
         const raw = await res.json()
         const procs = raw.processes || []
-        setProfilerData(procs.map((p: any) => ({
+        setProfilerData(procs.map((p: { Id?: number; pid?: number; Name?: string; name?: string; CPU?: number; cpu_percent?: number; WorkingSet?: number; memory_mb?: number }) => ({
           pid: p.Id || p.pid || 0,
           name: p.Name || p.name || 'Unknown',
           cpu_percent: p.CPU || p.cpu_percent || 0,

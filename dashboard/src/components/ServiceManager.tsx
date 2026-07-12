@@ -13,8 +13,30 @@ interface ServiceManagerProps {
   loading: boolean
 }
 
+type FilterValue = 'all' | 'running' | 'stopped'
+
+interface FilterBtnProps {
+  label: string
+  value: FilterValue
+  current: FilterValue
+  onClick: (value: FilterValue) => void
+}
+
+function FilterBtn({ label, value, current, onClick }: FilterBtnProps) {
+  return (
+    <button
+      onClick={() => onClick(value)}
+      className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
+        current === value ? 'bg-accent-cyan/20 text-accent-cyan' : 'bg-white/5 text-[var(--text-muted)] hover:bg-white/10'
+      }`}
+    >
+      {label}
+    </button>
+  )
+}
+
 export function ServiceManager({ services, onAction, loading }: ServiceManagerProps) {
-  const [filter, setFilter] = useState<'all' | 'running' | 'stopped'>('all')
+  const [filter, setFilter] = useState<FilterValue>('all')
   const [search, setSearch] = useState('')
 
   const filtered = useMemo(() => {
@@ -36,17 +58,6 @@ export function ServiceManager({ services, onAction, loading }: ServiceManagerPr
     }
   }
 
-  const FilterBtn = ({ label, value }: { label: string; value: 'all' | 'running' | 'stopped' }) => (
-    <button
-      onClick={() => setFilter(value)}
-      className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
-        filter === value ? 'bg-accent-cyan/20 text-accent-cyan' : 'bg-white/5 text-[var(--text-muted)] hover:bg-white/10'
-      }`}
-    >
-      {label}
-    </button>
-  )
-
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
@@ -60,9 +71,9 @@ export function ServiceManager({ services, onAction, loading }: ServiceManagerPr
             className="w-full h-8 rounded-md bg-white/5 border border-white/6 pl-7 pr-2 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-accent-cyan/50"
           />
         </div>
-        <FilterBtn label="All" value="all" />
-        <FilterBtn label="Running" value="running" />
-        <FilterBtn label="Stopped" value="stopped" />
+        <FilterBtn label="All" value="all" current={filter} onClick={setFilter} />
+        <FilterBtn label="Running" value="running" current={filter} onClick={setFilter} />
+        <FilterBtn label="Stopped" value="stopped" current={filter} onClick={setFilter} />
       </div>
 
       <div className="rounded-md border border-white/6 overflow-hidden">

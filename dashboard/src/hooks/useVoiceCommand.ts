@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 
 export type VoiceState = 'idle' | 'listening' | 'processing' | 'speaking' | 'executing'
 
@@ -37,31 +37,29 @@ export function useVoiceCommand() {
       mediaRecorder.onstop = async () => {
         setState('processing')
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
-        
+
         try {
-          // Send to backend for STT processing
           const formData = new FormData()
           formData.append('audio', audioBlob)
-          
+
           const res = await fetch('/api/device/voice', {
             method: 'POST',
             body: formData,
           })
-          
+
           if (!res.ok) throw new Error('Voice processing failed')
-          
+
           const result = await res.json()
           setTranscript(result.transcript || '')
           setResponse(result.response || '')
           setState('speaking')
-          
-          // Auto-play TTS response if available
+
           if (result.audio_url) {
             const audio = new Audio(result.audio_url)
             await audio.play()
           }
-          
-          setTimeout(() => setState('idle'), 2000)
+
+          window.setTimeout(() => setState('idle'), 2000)
         } catch (err) {
           setError(err instanceof Error ? err.message : 'Unknown error')
           setState('idle')
@@ -69,15 +67,14 @@ export function useVoiceCommand() {
       }
 
       mediaRecorder.start()
-      
-      // Stop after 10 seconds max
-      setTimeout(() => {
+
+      window.setTimeout(() => {
         if (mediaRecorderRef.current?.state === 'recording') {
           mediaRecorderRef.current.stop()
-          stream.getTracks().forEach(track => track.stop())
+          stream.getTracks().forEach((track) => track.stop())
         }
       }, 10000)
-    } catch (err) {
+    } catch {
       setError('Microphone access denied')
       setState('idle')
     }
@@ -86,7 +83,7 @@ export function useVoiceCommand() {
   const stopListening = useCallback(() => {
     if (mediaRecorderRef.current?.state === 'recording') {
       mediaRecorderRef.current.stop()
-      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop())
+      mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop())
     }
   }, [])
 

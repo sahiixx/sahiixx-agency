@@ -18,6 +18,26 @@ interface ProcessManagerProps {
 type SortKey = 'name' | 'pid' | 'cpu' | 'mem'
 type SortDir = 'asc' | 'desc'
 
+interface SortHeaderProps {
+  label: string
+  sortKey: SortKey
+  activeKey: SortKey
+  sortDir: SortDir
+  onClick: (key: SortKey) => void
+}
+
+function SortHeader({ label, sortKey, activeKey, sortDir, onClick }: SortHeaderProps) {
+  return (
+    <button
+      onClick={() => onClick(sortKey)}
+      className="flex items-center gap-1 text-[10px] uppercase hover:text-[var(--text-primary)] transition-colors"
+    >
+      {label}
+      {activeKey === sortKey && <ArrowUpDown className={`h-3 w-3 ${sortDir === 'asc' ? 'rotate-180' : ''}`} />}
+    </button>
+  )
+}
+
 export function ProcessManager({ processes, onKill, loading }: ProcessManagerProps) {
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('cpu')
@@ -33,7 +53,7 @@ export function ProcessManager({ processes, onKill, loading }: ProcessManagerPro
   }
 
   const filtered = useMemo(() => {
-    let list = processes.filter(p =>
+    const list = processes.filter(p =>
       p.name.toLowerCase().includes(search.toLowerCase())
     )
     list.sort((a, b) => {
@@ -47,16 +67,6 @@ export function ProcessManager({ processes, onKill, loading }: ProcessManagerPro
     })
     return list
   }, [processes, search, sortKey, sortDir])
-
-  const SortHeader = ({ label, key }: { label: string; key: SortKey }) => (
-    <button
-      onClick={() => toggleSort(key)}
-      className="flex items-center gap-1 text-[10px] uppercase hover:text-[var(--text-primary)] transition-colors"
-    >
-      {label}
-      {sortKey === key && <ArrowUpDown className="h-3 w-3" />}
-    </button>
-  )
 
   return (
     <div className="space-y-3">
@@ -76,10 +86,10 @@ export function ProcessManager({ processes, onKill, loading }: ProcessManagerPro
 
       <div className="rounded-md border border-white/6 overflow-hidden">
         <div className="grid grid-cols-[1fr_4rem_4rem_4rem_3rem] gap-1 px-2 py-1.5 text-[10px] text-[var(--text-muted)] uppercase bg-white/5">
-          <SortHeader label="Name" key="name" />
-          <div className="text-right"><SortHeader label="PID" key="pid" /></div>
-          <div className="text-right"><SortHeader label="CPU" key="cpu" /></div>
-          <div className="text-right"><SortHeader label="Mem" key="mem" /></div>
+          <SortHeader label="Name" sortKey="name" activeKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+          <div className="text-right"><SortHeader label="PID" sortKey="pid" activeKey={sortKey} sortDir={sortDir} onClick={toggleSort} /></div>
+          <div className="text-right"><SortHeader label="CPU" sortKey="cpu" activeKey={sortKey} sortDir={sortDir} onClick={toggleSort} /></div>
+          <div className="text-right"><SortHeader label="Mem" sortKey="mem" activeKey={sortKey} sortDir={sortDir} onClick={toggleSort} /></div>
           <span />
         </div>
         <div className="max-h-64 overflow-y-auto">

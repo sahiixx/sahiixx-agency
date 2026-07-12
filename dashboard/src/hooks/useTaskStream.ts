@@ -1,66 +1,79 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 
 export interface TaskUpdate {
   id: string
-  intent: string
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
-  module?: string
-  module_id?: string
+  status: string
+  message: string
+  progress: number
   result?: string
   error?: string
-  created_at: string
+  intent?: string
+  module?: string
+  module_id?: string
 }
 
-export function useTaskStream(taskId: string | null) {
+interface UseTaskStreamOptions {
+  onMessage?: (update: TaskUpdate) => void
+  onComplete?: (update: TaskUpdate) => void
+  onError?: (error: string) => void
+}
+
+export function useTaskStream(taskId: string | undefined | null, options: UseTaskStreamOptions = {}) {
   const [task, setTask] = useState<TaskUpdate | null>(null)
   const [connected, setConnected] = useState(false)
   const [finished, setFinished] = useState(false)
+  const eventSourceRef = useRef<EventSource | null>(null)
+  const optionsRef = useRef(options)
 
-  const disconnect = useCallback(() => {
+  useEffect(() => {
+    optionsRef.current = options
+  })
+
+  const handleOpen = useCallback(() => setConnected(true), [])
+
+  const handleMessage = useCallback((event: MessageEvent) => {
+    if (!event.data || event.data.startsWith(':')) return
+    try {
+      const data: TaskUpdate = JSON.parse(event.data)
+      setTask(data)
+      optionsRef.current.onMessage?.(data)
+      const terminal = ['completed', 'failed', 'cancelled']
+      if (terminal.includes(data.status)) {
+        setFinished(true)
+        optionsRef.current.onComplete?.(data)
+      }
+    } catch (e) {
+      optionsRef.current.onError?.(e instanceof Error ? e.message : String(e))
+    }
+  }, [])
+
+  const handleError = useCallback(() => {
     setConnected(false)
-    setFinished(true)
+    optionsRef.current.onError?.('EventSource connection error')
   }, [])
 
   useEffect(() => {
     if (!taskId) {
-      setTask(null)
-      setConnected(false)
-      setFinished(false)
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close()
+        eventSourceRef.current = null
+      }
       return
     }
 
-    setFinished(false)
+    window.setTimeout(() => setFinished(false), 0)
     const eventSource = new EventSource(`/api/tasks/${taskId}/stream`)
+    eventSourceRef.current = eventSource
 
-    eventSource.onopen = () => {
-      setConnected(true)
-    }
-
-    eventSource.onmessage = (event) => {
-      if (!event.data || event.data.startsWith(':')) return
-      try {
-        const data: TaskUpdate = JSON.parse(event.data)
-        setTask(data)
-        const terminal = ['completed', 'failed', 'cancelled']
-        if (terminal.includes(data.status)) {
-          setFinished(true)
-          eventSource.close()
-        }
-      } catch {
-        // ignore malformed events
-      }
-    }
-
-    eventSource.onerror = () => {
-      setConnected(false)
-      eventSource.close()
-    }
+    eventSource.onopen = handleOpen
+    eventSource.onmessage = handleMessage
+    eventSource.onerror = handleError
 
     return () => {
       eventSource.close()
-      setConnected(false)
+      eventSourceRef.current = null
     }
-  }, [taskId])
+  }, [taskId, handleOpen, handleMessage, handleError])
 
-  return { task, connected, finished, disconnect }
+  return { task, connected, finished }
 }

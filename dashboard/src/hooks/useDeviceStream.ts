@@ -24,11 +24,7 @@ export function useDeviceStream(enabled: boolean = true) {
   }, [])
 
   useEffect(() => {
-    if (!enabled) {
-      disconnect()
-      return
-    }
-
+    if (!enabled) return
     const es = new EventSource('/api/device/stream')
     esRef.current = es
 
@@ -42,7 +38,7 @@ export function useDeviceStream(enabled: boolean = true) {
         const data: DeviceMetrics = JSON.parse(event.data)
         if ('cpu' in data) {
           setMetrics(data)
-          setHistory(prev => [...prev, data].slice(-60))
+          setHistory((prev) => [...prev, data].slice(-60))
         }
       } catch {
         // ignore malformed
@@ -57,7 +53,7 @@ export function useDeviceStream(enabled: boolean = true) {
       es.close()
       esRef.current = null
     }
-  }, [enabled, disconnect])
+  }, [enabled])
 
   return { metrics, connected, history, disconnect }
 }

@@ -77,7 +77,7 @@ export default function Agency() {
     if (liveTask && liveCardRef.current) {
       liveCardRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
     }
-  }, [liveTask?.status, liveTask?.result, liveTask?.error])
+  }, [liveTask])
 
   // TTS: speak the latest agency message when messages update
   useEffect(() => {
@@ -90,6 +90,19 @@ export default function Agency() {
     }
     prevMessagesLen.current = messages.length
   }, [messages, ttsEnabled, speak])
+
+  const handleNav = useCallback(
+    (key: SidebarItem) => {
+      if (key === 'graph') {
+        navigate('/graph')
+        return
+      }
+      setActive(key)
+      setMobileSidebarOpen(false)
+      setSelectedTask(null)
+    },
+    [navigate]
+  )
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -122,7 +135,7 @@ export default function Agency() {
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [mobileSidebarOpen])
+  }, [mobileSidebarOpen, handleNav])
 
   const navItems: { key: SidebarItem; label: string; icon: React.ReactNode }[] = [
     { key: 'chat', label: 'Chat', icon: <MessageSquare className="h-5 w-5" /> },
@@ -133,19 +146,6 @@ export default function Agency() {
     { key: 'device', label: 'Device', icon: <Monitor className="h-5 w-5" /> },
     { key: 'graph', label: 'Graph', icon: <GitBranch className="h-5 w-5" /> },
   ]
-
-  const handleNav = useCallback(
-    (key: SidebarItem) => {
-      if (key === 'graph') {
-        navigate('/graph')
-        return
-      }
-      setActive(key)
-      setMobileSidebarOpen(false)
-      setSelectedTask(null)
-    },
-    [navigate]
-  )
 
   const handleSend = useCallback(
     async (text: string) => {

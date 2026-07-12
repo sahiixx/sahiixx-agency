@@ -7,15 +7,34 @@ interface ChatInputProps {
 }
 
 interface SpeechRecognitionEvent {
-  results: SpeechRecognitionResultList
+  resultIndex: number
+  results: {
+    [index: number]: {
+      [index: number]: { transcript: string }
+      isFinal: boolean
+    }
+    length: number
+  }
 }
 
-interface SpeechRecognitionResultList {
-  length: number
-  [index: number]: {
-    [index: number]: { transcript: string }
-    isFinal: boolean
-  }
+interface SpeechRecognition {
+  continuous: boolean
+  interimResults: boolean
+  lang: string
+  onresult: ((event: SpeechRecognitionEvent) => void) | null
+  onerror: ((event: { error: string }) => void) | null
+  onend: (() => void) | null
+  start(): void
+  stop(): void
+}
+
+interface SpeechRecognitionStatic {
+  new (): SpeechRecognition
+}
+
+interface WindowWithSpeechRecognition extends Window {
+  SpeechRecognition?: SpeechRecognitionStatic
+  webkitSpeechRecognition?: SpeechRecognitionStatic
 }
 
 const WAKE_WORDS = ['hey jarvis', 'ok agency', 'hello agency', 'jarvis']
@@ -44,17 +63,22 @@ function VoiceWaveform({ active }: { active: boolean }) {
   )
 }
 
+function getSpeechRecognition(): SpeechRecognitionStatic | undefined {
+  if (typeof window === 'undefined') return undefined
+  const win = window as unknown as WindowWithSpeechRecognition
+  return win.SpeechRecognition || win.webkitSpeechRecognition
+}
+
 export function ChatInput({ onSend, disabled }: ChatInputProps) {
   const [text, setText] = useState('')
   const [listening, setListening] = useState(false)
   const [wakeMode, setWakeMode] = useState(false)
-  const recognitionRef = useRef<any>(null)
-  const wakeRecognitionRef = useRef<any>(null)
-  const transcriptBuffer = useRef('')
+  const recognitionRef = useRef<SpeechRecognition | null>(null)
+  const wakeRecognitionRef = useRef<SpeechRecognition | null>(null)
 
   // Normal voice input (manual mic button)
   useEffect(() => {
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    const SR = getSpeechRecognition()
     if (!SR) return
 
     const recognition = new SR()
@@ -87,7 +111,7 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
   // Wake-word detection (always listening when enabled)
   useEffect(() => {
     if (!wakeMode) return
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    const SR = getSpeechRecognition()
     if (!SR) return
 
     const recognition = new SR()
@@ -115,12 +139,11 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
         
         if (command) {
           onSend(command)
-          transcriptBuffer.current = ''
         } else {
           // Wake word detected but no command yet — start active listening
           setListening(true)
           if (recognitionRef.current) {
-            try { recognitionRef.current.start() } catch {}
+            try { recognitionRef.current.start() } catch { /* already started */ }
           }
         }
       }
@@ -128,26 +151,22 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
 
     recognition.onerror = () => {
       // Restart on error
-      if (wakeMode) {
-        setTimeout(() => {
-          try { wakeRecognitionRef.current?.start() } catch {}
-        }, 500)
-      }
+      window.setTimeout(() => {
+        try { wakeRecognitionRef.current?.start() } catch { /* already started */ }
+      }, 500)
     }
 
     recognition.onend = () => {
-      if (wakeMode) {
-        setTimeout(() => {
-          try { wakeRecognitionRef.current?.start() } catch {}
-        }, 200)
-      }
+      window.setTimeout(() => {
+        try { wakeRecognitionRef.current?.start() } catch { /* already started */ }
+      }, 200)
     }
 
     wakeRecognitionRef.current = recognition
-    try { recognition.start() } catch {}
+    try { recognition.start() } catch { /* already started */ }
 
     return () => {
-      try { recognition.stop() } catch {}
+      try { recognition.stop() } catch { /* already stopped */ }
     }
   }, [wakeMode, onSend])
 
@@ -170,8 +189,8 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
     setWakeMode((v) => {
       if (v) {
         // turning off
-        try { wakeRecognitionRef.current?.stop() } catch {}
-        try { recognitionRef.current?.stop() } catch {}
+        try { wakeRecognitionRef.current?.stop() } catch { /* already stopped */ }
+        try { recognitionRef.current?.stop() } catch { /* already stopped */ }
         setListening(false)
       }
       return !v

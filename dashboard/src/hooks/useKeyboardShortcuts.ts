@@ -1,6 +1,6 @@
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef, useLayoutEffect } from 'react';
 
-interface Shortcut {
+export interface Shortcut {
   key: string;
   ctrl?: boolean;
   meta?: boolean;
@@ -15,9 +15,26 @@ interface UseKeyboardShortcutsOptions {
   enabled?: boolean;
 }
 
+export const JARVIS_SHORTCUTS: Record<string, Shortcut> = {
+  VOICE_TOGGLE: { key: 'v', alt: true, description: 'Toggle voice input', action: () => {} },
+  QUICK_STATUS: { key: '1', alt: true, description: 'Status command', action: () => {} },
+  QUICK_HEALTH: { key: '2', alt: true, description: 'Health command', action: () => {} },
+  QUICK_REGISTRY: { key: '3', alt: true, description: 'Registry command', action: () => {} },
+  QUICK_TASKS: { key: '4', alt: true, description: 'Tasks command', action: () => {} },
+  QUICK_MODULES: { key: '5', alt: true, description: 'Modules command', action: () => {} },
+  QUICK_HELP: { key: '6', alt: true, description: 'Help command', action: () => {} },
+  CLEAR_CHAT: { key: 'c', alt: true, description: 'Clear chat', action: () => {} },
+  FOCUS_INPUT: { key: 'f', alt: true, description: 'Focus input', action: () => {} },
+  DISMISS: { key: 'Escape', description: 'Close shortcuts', action: () => {} },
+};
+
+export type ShortcutKey = keyof typeof JARVIS_SHORTCUTS;
+
 export function useKeyboardShortcuts({ shortcuts, enabled = true }: UseKeyboardShortcutsOptions) {
   const shortcutsRef = useRef(shortcuts);
-  shortcutsRef.current = shortcuts;
+  useLayoutEffect(() => {
+    shortcutsRef.current = shortcuts;
+  });
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent) => {
@@ -60,20 +77,3 @@ export function useKeyboardShortcuts({ shortcuts, enabled = true }: UseKeyboardS
     }
   }, [handleKeyDown, enabled]);
 }
-
-// Predefined Jarvis shortcuts
-export const JARVIS_SHORTCUTS = {
-  VOICE_TOGGLE: { key: 'v', ctrl: true, description: 'Toggle voice input' },
-  SEND_MESSAGE: { key: 'Enter', description: 'Send message' },
-  QUICK_STATUS: { key: '1', alt: true, description: 'Quick status check' },
-  QUICK_HEALTH: { key: '2', alt: true, description: 'Quick health check' },
-  QUICK_REGISTRY: { key: '3', alt: true, description: 'Show registry' },
-  QUICK_TASKS: { key: '4', alt: true, description: 'Show tasks' },
-  QUICK_MODULES: { key: '5', alt: true, description: 'Show modules' },
-  QUICK_HELP: { key: '6', alt: true, description: 'Show help' },
-  CLEAR_CHAT: { key: 'k', ctrl: true, description: 'Clear chat' },
-  FOCUS_INPUT: { key: '/', description: 'Focus input field' },
-  DISMISS: { key: 'Escape', description: 'Dismiss/close' },
-} as const;
-
-export type ShortcutKey = keyof typeof JARVIS_SHORTCUTS;

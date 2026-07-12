@@ -49,9 +49,9 @@ export function JarvisGUI() {
     const saved = localStorage.getItem('jarvis_history');
     if (saved) {
       try {
-        const parsed = JSON.parse(saved);
-        setHistory(parsed.map((h: any) => ({ ...h, timestamp: new Date(h.timestamp) })));
-      } catch {}
+        const parsed = JSON.parse(saved) as Array<{ id: string; command: string; result: string; success: boolean; timestamp: string; duration: number }>
+        setHistory(parsed.map((h) => ({ ...h, timestamp: new Date(h.timestamp) })))
+      } catch { /* ignore malformed history */ }
     }
   }, []);
 

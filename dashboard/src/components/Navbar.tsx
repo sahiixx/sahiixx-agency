@@ -38,6 +38,7 @@ const links = [
   { label: 'Marketplace', path: '/marketplace' },
   { label: 'LLM', path: '/llm' },
   { label: 'Workflows', path: '/workflows' },
+  { label: 'Skills', path: '/skills' },
   { label: 'Metrics', path: '/metrics' },
   { label: 'Todos', path: '/todos' },
   { label: 'About', path: '/about' },

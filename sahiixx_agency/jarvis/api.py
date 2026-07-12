@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 from .agent import JarvisAgent
@@ -154,3 +156,59 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
 
     except WebSocketDisconnect:
         manager.disconnect(websocket)
+
+
+# ─── ElevenLabs TTS endpoint ──────────────────────────────────
+
+
+class TTSRequest(BaseModel):
+    """Request body for TTS endpoint."""
+
+    text: str
+    voice_id: str = "21m00Tcm4TlvDq8ikWAM"  # Default ElevenLabs voice
+
+
+@router.post("/tts")
+async def text_to_speech(request: TTSRequest) -> Response:
+    """Convert text to speech using ElevenLabs API."""
+    try:
+        import httpx
+
+        api_key = os.environ.get("ELEVENLABS_API_KEY")
+        if not api_key:
+            return Response(
+                content='{"error": "ELEVENLABS_API_KEY not set"}',
+                status_code=500,
+                media_type="application/json",
+            )
+
+        async with httpx.AsyncClient(timeout=60) as client:
+            response = await client.post(
+                f"https://api.elevenlabs.io/v1/text-to-speech/{request.voice_id}",
+                headers={
+                    "xi-api-key": api_key,
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "text": request.text,
+                    "model_id": "eleven_multilingual_v2",
+                    "voice_settings": {
+                        "stability": 0.5,
+                        "similarity_boost": 0.75,
+                        "style": 0.5,
+                        "use_speaker_boost": True,
+                    },
+                },
+            )
+            response.raise_for_status()
+            return Response(
+                content=response.content,
+                media_type="audio/mpeg",
+            )
+
+    except Exception as e:
+        return Response(
+            content=f'{{"error": "{str(e)}"}}',
+            status_code=500,
+            media_type="application/json",
+        )

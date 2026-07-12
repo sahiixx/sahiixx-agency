@@ -102,7 +102,7 @@ class VoicePipeline:
             raise RuntimeError(f"OpenAI TTS failed: {e}")
 
     async def _elevenlabs_tts(self, text: str, voice_id: str) -> bytes:
-        """ElevenLabs TTS API."""
+        """ElevenLabs TTS API with v2 model for high quality."""
         try:
             import httpx
 
@@ -110,7 +110,7 @@ class VoicePipeline:
             if not api_key:
                 raise ValueError("ELEVENLABS_API_KEY not set for TTS")
 
-            async with httpx.AsyncClient(timeout=30) as client:
+            async with httpx.AsyncClient(timeout=60) as client:
                 response = await client.post(
                     f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
                     headers={
@@ -119,7 +119,13 @@ class VoicePipeline:
                     },
                     json={
                         "text": text,
-                        "model_id": "eleven_monolingual_v1",
+                        "model_id": "eleven_multilingual_v2",
+                        "voice_settings": {
+                            "stability": 0.5,
+                            "similarity_boost": 0.75,
+                            "style": 0.5,
+                            "use_speaker_boost": True,
+                        },
                     },
                 )
                 response.raise_for_status()

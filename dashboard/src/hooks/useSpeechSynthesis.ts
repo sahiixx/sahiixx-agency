@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef } from 'react';
 
 interface SpeechSynthesisOptions {
   lang?: string;
@@ -6,127 +6,85 @@ interface SpeechSynthesisOptions {
   pitch?: number;
   volume?: number;
   voice?: string;
+  voiceId?: string;
   onEnd?: () => void;
 }
 
 interface SpeechSynthesisState {
   isSpeaking: boolean;
   isSupported: boolean;
-  voices: SpeechSynthesisVoice[];
   error: string | null;
 }
 
 export function useSpeechSynthesis(options: SpeechSynthesisOptions = {}) {
-  const {
-    lang = 'en-US',
-    rate = 1.0,
-    pitch = 1.0,
-    volume = 1.0,
-    voice,
-    onEnd,
-  } = options;
+  const { voiceId = '21m00Tcm4TlvDq8ikWAM', onEnd } = options;
 
   const [state, setState] = useState<SpeechSynthesisState>({
     isSpeaking: false,
-    isSupported: false,
-    voices: [],
+    isSupported: true,
     error: null,
   });
 
-  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Check support and load voices
-  useEffect(() => {
-    const synth = window.speechSynthesis;
-    const isSupported = !!synth;
+  const speak = useCallback(async (text: string) => {
+    setState(prev => ({ ...prev, isSpeaking: true, error: null }));
 
-    setState(prev => ({ ...prev, isSupported }));
+    try {
+      const resp = await fetch('/api/jarvis/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, voice_id: voiceId }),
+      });
 
-    if (isSupported) {
-      const loadVoices = () => {
-        const voices = synth.getVoices();
-        setState(prev => ({ ...prev, voices }));
+      if (!resp.ok) {
+        throw new Error('TTS request failed');
+      }
+
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+
+      // Stop any current audio
+      if (audioRef.current) {
+        audioRef.current.pause();
+        URL.revokeObjectURL(audioRef.current.src);
+      }
+
+      const audio = new Audio(url);
+      audioRef.current = audio;
+
+      audio.onended = () => {
+        setState(prev => ({ ...prev, isSpeaking: false }));
+        URL.revokeObjectURL(url);
+        onEnd?.();
       };
 
-      loadVoices();
-      synth.onvoiceschanged = loadVoices;
-    }
-  }, []);
+      audio.onerror = () => {
+        setState(prev => ({ ...prev, isSpeaking: false, error: 'Audio playback failed' }));
+        URL.revokeObjectURL(url);
+      };
 
-  const speak = useCallback((text: string) => {
-    const synth = window.speechSynthesis;
-    if (!synth) {
-      setState(prev => ({ ...prev, error: 'Speech synthesis not supported' }));
-      return;
-    }
-
-    // Cancel any ongoing speech
-    synth.cancel();
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = lang;
-    utterance.rate = rate;
-    utterance.pitch = pitch;
-    utterance.volume = volume;
-
-    // Find specific voice if requested
-    if (voice) {
-      const selectedVoice = state.voices.find(v =>
-        v.name.includes(voice) || v.lang.startsWith(voice)
-      );
-      if (selectedVoice) {
-        utterance.voice = selectedVoice;
-      }
-    }
-
-    utterance.onstart = () => {
-      setState(prev => ({ ...prev, isSpeaking: true, error: null }));
-    };
-
-    utterance.onend = () => {
-      setState(prev => ({ ...prev, isSpeaking: false }));
-      onEnd?.();
-    };
-
-    utterance.onerror = (event) => {
+      await audio.play();
+    } catch (e) {
       setState(prev => ({
         ...prev,
         isSpeaking: false,
-        error: `Speech synthesis error: ${event.error}`,
+        error: e instanceof Error ? e.message : 'TTS failed',
       }));
-    };
-
-    utteranceRef.current = utterance;
-    synth.speak(utterance);
-  }, [lang, rate, pitch, volume, voice, state.voices, onEnd]);
+    }
+  }, [voiceId, onEnd]);
 
   const stop = useCallback(() => {
-    const synth = window.speechSynthesis;
-    if (synth) {
-      synth.cancel();
-      setState(prev => ({ ...prev, isSpeaking: false }));
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
     }
-  }, []);
-
-  const pause = useCallback(() => {
-    const synth = window.speechSynthesis;
-    if (synth) {
-      synth.pause();
-    }
-  }, []);
-
-  const resume = useCallback(() => {
-    const synth = window.speechSynthesis;
-    if (synth) {
-      synth.resume();
-    }
+    setState(prev => ({ ...prev, isSpeaking: false }));
   }, []);
 
   return {
     ...state,
     speak,
     stop,
-    pause,
-    resume,
   };
 }

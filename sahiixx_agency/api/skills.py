@@ -111,6 +111,8 @@ class RunSkillRequest(BaseModel):
     payload: dict[str, Any] = Field(default_factory=dict)
     async_: bool = Field(default=False, alias="async")
 
+    model_config = {"populate_by_name": True}
+
 
 @router.post("/{skill_id}/run")
 async def run_skill(skill_id: str, request: RunSkillRequest) -> dict[str, Any]:

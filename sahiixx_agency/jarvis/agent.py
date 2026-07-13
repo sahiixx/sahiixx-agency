@@ -224,7 +224,7 @@ class JarvisAgent:
 
             config = AgencyConfig()
             engine = AgencyEngine(config)
-            stats = engine.get_stats()
+            stats = engine.stats()
 
             lines = ["**OPA Statistics**"]
             for key, value in stats.items():
@@ -285,8 +285,8 @@ class JarvisAgent:
             from sahiixx_agency.core.registry import RepoRegistry
 
             registry = RepoRegistry()
-            modules = registry.list_modules()
-            categories = {}
+            modules = registry.modules
+            categories: dict[str, int] = {}
             for m in modules:
                 cat = m.category.value if hasattr(m, "category") else "unknown"
                 categories[cat] = categories.get(cat, 0) + 1
@@ -359,7 +359,7 @@ class JarvisAgent:
 
             config = AgencyConfig()
             engine = AgencyEngine(config)
-            result = await engine.sync_registry()
+            result = await engine.sync_repos()
 
             self.state.mode = JarvisMode.IDLE
             return JarvisResponse(
@@ -376,7 +376,7 @@ class JarvisAgent:
             from sahiixx_agency.core.registry import RepoRegistry
 
             registry = RepoRegistry()
-            modules = registry.list_modules()
+            modules = registry.modules
 
             lines = [f"**Modules ({len(modules)})**"]
             for m in modules[:15]:

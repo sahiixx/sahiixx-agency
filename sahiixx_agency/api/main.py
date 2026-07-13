@@ -81,7 +81,9 @@ def _cors_origins() -> list[str]:
     raw = os.environ.get("OPA_CORS_ORIGINS", "").strip()
     if raw:
         return [o.strip() for o in raw.split(",") if o.strip()]
-    return ["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:3000"]
+    return ["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:3000",
+            "http://localhost:7777", "http://127.0.0.1:7777",
+            "null"]  # null = file:// protocol
 
 
 app.add_middleware(

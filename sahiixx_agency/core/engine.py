@@ -231,6 +231,45 @@ def _make_lobehub(config, network_policy, audit_logger, task):
     return adapter, payload
 
 
+def _make_scrapling(config, network_policy, audit_logger, task):
+    from sahiixx_agency.adapters.scraper.scrapling_adapter import ScraplingAdapter
+
+    adapter = ScraplingAdapter(
+        clone_base_dir=os.path.join(config.data_dir, "repos"),
+        network_policy=network_policy,
+        audit_logger=audit_logger,
+    )
+    payload = dict(task.payload)
+    payload.setdefault("brief", task.intent)
+    return adapter, payload
+
+
+def _make_mineru(config, network_policy, audit_logger, task):
+    from sahiixx_agency.adapters.extraction.mineru_adapter import MinerUAdapter
+
+    adapter = MinerUAdapter(
+        clone_base_dir=os.path.join(config.data_dir, "repos"),
+        network_policy=network_policy,
+        audit_logger=audit_logger,
+    )
+    payload = dict(task.payload)
+    payload.setdefault("brief", task.intent)
+    return adapter, payload
+
+
+def _make_goose(config, network_policy, audit_logger, task):
+    from sahiixx_agency.adapters.agent_cli.goose_adapter import GooseAdapter
+
+    adapter = GooseAdapter(
+        clone_base_dir=os.path.join(config.data_dir, "repos"),
+        network_policy=network_policy,
+        audit_logger=audit_logger,
+    )
+    payload = dict(task.payload)
+    payload.setdefault("brief", task.intent)
+    return adapter, payload
+
+
 _SPECIALIZED_ADAPTERS: dict[
     str,
     Callable[[AgencyConfig, NetworkPolicy, AuditLogger, AgencyTask], tuple[Any, dict[str, Any]]],
@@ -259,6 +298,11 @@ _SPECIALIZED_ADAPTERS: dict[
     "deerflow": _make_agentic_framework_adapter("deerflow"),
     "n8n": _make_n8n,
     "lobehub": _make_lobehub,
+    "langgraph": _make_agentic_framework_adapter("langgraph"),
+    "open_design": _make_html_anything,
+    "scrapling": _make_scrapling,
+    "mineru": _make_mineru,
+    "goose": _make_goose,
 }
 
 

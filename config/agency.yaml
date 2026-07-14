@@ -458,6 +458,57 @@ ecosystem:
     priority: 2
     tags: [framework, agents, camel, multi-agent]
 
+  # ── More starred modules (batch 2) ──
+  langgraph:
+    repo: langgraph
+    owner: langchain-ai
+    url: https://github.com/langchain-ai/langgraph
+    role: "Build resilient graph-based agents and multi-step workflows"
+    bus_channel: "framework.*"
+    protocol: python-lib
+    priority: 2
+    tags: [framework, agents, langgraph, graph, langchain, orchestration]
+
+  open_design:
+    repo: open-design
+    owner: nexu-io
+    url: https://github.com/nexu-io/open-design
+    role: "Open-source Claude Design alternative — prototype landing pages, decks, slides, video"
+    bus_channel: "design.*"
+    protocol: api
+    priority: 2
+    tags: [design, open-design, nexu-io, landing-page, deck, slides, video]
+
+  scrapling:
+    repo: Scrapling
+    owner: D4Vinci
+    url: https://github.com/D4Vinci/Scrapling
+    role: "Adaptive web scraping framework — single request to full crawl"
+    bus_channel: "scraper.*"
+    protocol: subprocess
+    priority: 2
+    tags: [scraper, scraping, crawler, extraction, web]
+
+  mineru:
+    repo: MinerU
+    owner: opendatalab
+    url: https://github.com/opendatalab/MinerU
+    role: "Convert PDFs/Office docs into LLM-ready markdown/JSON"
+    bus_channel: "extraction.*"
+    protocol: subprocess
+    priority: 2
+    tags: [extraction, pdf, document, markdown, rag, mineru]
+
+  goose:
+    repo: goose
+    owner: aaif-goose
+    url: https://github.com/aaif-goose/goose
+    role: "Extensible AI agent — install, execute, edit, test with any LLM"
+    bus_channel: "agent.*"
+    protocol: subprocess
+    priority: 2
+    tags: [agent, cli, goose, autonomous, coding]
+
 # ─── Routing Rules ─────────────────────────────────────────────
 routing_rules:
   - pattern: "t3mp3st|red.team|offensive|0-day|zero.day|exploit|pentest|recon|scan|vuln|vulnerability|security|cve|hunt|threat|attack|ctf|pwn|bug.bounty|osint"
@@ -516,4 +567,14 @@ routing_rules:
     target: n8n
   - pattern: "camel-ai|camel agent|collaborative agent"
     target: camel
+  - pattern: "langgraph|state graph|graph agent|langgraph workflow"
+    target: langgraph
+  - pattern: "open-design|nexu.*design|open source design"
+    target: open_design
+  - pattern: "scrape|scraping|crawl|scrapling|fetch website|extract from site"
+    target: scrapling
+  - pattern: "mineru|extract pdf|pdf to markdown|document to markdown|convert doc"
+    target: mineru
+  - pattern: "goose|goose agent|run goose|autonomous coding agent"
+    target: goose
 

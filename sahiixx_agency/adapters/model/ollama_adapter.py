@@ -1,8 +1,9 @@
-"""Goose adapter.
+"""Ollama adapter.
 
-Connects the promoted ``goose`` ecosystem module (extensible AI agent) to the
-execution pipeline. Runs the Goose CLI when present, otherwise returns a
-deterministic simulation so the dispatch chain stays green offline.
+Connects the promoted ``ollama`` ecosystem module (local LLM runtime) to the
+execution pipeline. Scaffolds and runs ``ollama run <model>`` / ``ollama pull``
+when the daemon is reachable, otherwise returns a deterministic simulation so
+the dispatch chain stays green offline.
 """
 
 from __future__ import annotations
@@ -11,21 +12,19 @@ import os
 import shutil
 import subprocess
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any
 
 from sahiixx_agency.core.models import RepoNode
 from sahiixx_agency.core.security import AuditLogger, NetworkPolicy
 
-DEFAULT_CLONE_BASE = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "repos")
-)
+DEFAULT_OLLAMA_HOST = "http://127.0.0.1:11434"
 
 
 @dataclass
-class GooseResult:
+class OllamaResult:
     ok: bool
     brief: str
+    model: str
     command: str
     returncode: int
     stdout: str
@@ -39,20 +38,18 @@ class GooseResult:
             self.status = "success" if self.ok else "failed"
 
 
-class GooseAdapter:
-    """Adapter that runs a Goose agent session from a brief."""
+class OllamaAdapter:
+    """Adapter that runs a local LLM via Ollama from a brief."""
 
     def __init__(
         self,
-        repo_dir: str | Path | None = None,
-        clone_base_dir: str | Path | None = None,
+        host: str = DEFAULT_OLLAMA_HOST,
         timeout: int = 300,
         fallback_on_failure: bool = True,
         network_policy: NetworkPolicy | None = None,
         audit_logger: AuditLogger | None = None,
     ) -> None:
-        base = Path(clone_base_dir) if clone_base_dir else Path(DEFAULT_CLONE_BASE)
-        self.repo_dir = Path(repo_dir) if repo_dir else base / "goose"
+        self.host = host
         self.timeout = timeout
         self.fallback_on_failure = fallback_on_failure
         self.network_policy = network_policy
@@ -74,25 +71,28 @@ class GooseAdapter:
             if self.audit_logger is not None:
                 self.audit_logger.log(
                     "network_policy_violation",
-                    "GooseAdapter",
+                    "OllamaAdapter",
                     node.id,
                     {"blocked_hosts": blocked, "allowlist": sorted(policy.allowlist)},
                 )
             raise RuntimeError(message)
 
-    def _run_subprocess(self, command: list[str]) -> GooseResult:
+    def _run_subprocess(self, command: list[str]) -> OllamaResult:
         command_str = " ".join(command)
+        run_env = {**os.environ, "OLLAMA_HOST": self.host.replace("http://", "")}
         try:
             proc = subprocess.run(
                 command,
                 capture_output=True,
                 text=True,
                 timeout=self.timeout,
+                env=run_env,
                 check=False,
             )
-            return GooseResult(
+            return OllamaResult(
                 ok=proc.returncode == 0,
                 brief="",
+                model="",
                 command=command_str,
                 returncode=proc.returncode,
                 stdout=proc.stdout[:8000] if proc.stdout else "",
@@ -102,51 +102,71 @@ class GooseAdapter:
                 metadata={"timeout": self.timeout, "fallback": False},
             )
         except subprocess.TimeoutExpired as exc:
-            return GooseResult(
-                ok=False, brief="", command=command_str, returncode=-1,
+            return OllamaResult(
+                ok=False, brief="", model="", command=command_str, returncode=-1,
                 stdout=str(exc.stdout or ""), stderr=f"Timeout after {self.timeout}s",
                 cwd=os.getcwd(), status="timeout",
                 metadata={"timeout": self.timeout, "fallback": False},
             )
         except Exception as exc:  # noqa: BLE001
-            return GooseResult(
-                ok=False, brief="", command=command_str, returncode=-1,
+            return OllamaResult(
+                ok=False, brief="", model="", command=command_str, returncode=-1,
                 stdout="", stderr=str(exc), cwd=os.getcwd(), status="exception",
                 metadata={"timeout": self.timeout, "fallback": False},
             )
 
-    def _simulate(self, brief: str) -> GooseResult:
-        return GooseResult(
+    def _simulate(self, brief: str, model: str) -> OllamaResult:
+        return OllamaResult(
             ok=True,
             brief=brief,
-            command="goose run -t <brief> <simulated>",
+            model=model,
+            command=f"ollama run {model} <simulated>",
             returncode=0,
             stdout=(
-                f"[SIMULATED] Goose agent session\n"
-                f"brief: {brief}\n"
-                f"next_step: install goose (https://github.com/aaif-goose/goose) && "
-                f"goose run -t \"{brief}\"\n"
+                f"[SIMULATED] Ollama local LLM run\n"
+                f"model: {model}\n"
+                f"prompt: {brief}\n"
+                f"next_step: ollama pull {model} && ollama run {model} \"{brief}\"\n"
             ),
             stderr="",
             cwd=os.getcwd(),
             status="simulated",
-            metadata={"timeout": self.timeout, "fallback": True, "note": "goose CLI not found"},
+            metadata={"timeout": self.timeout, "fallback": True, "note": "ollama not reachable"},
         )
 
-    def dispatch(self, brief: str) -> GooseResult:
+    def dispatch(self, brief: str, model: str | None = None, project_name: str | None = None) -> OllamaResult:
         if not brief:
-            return GooseResult(
-                ok=False, brief="", command="", returncode=-1, stdout="",
+            return OllamaResult(
+                ok=False, brief="", model="", command="", returncode=-1, stdout="",
                 stderr="No brief provided", cwd=os.getcwd(), status="failed",
             )
-        goose_bin = shutil.which("goose")
-        if goose_bin is None:
-            return self._simulate(brief)
+        model = model or _infer_model(brief)
+        if shutil.which("ollama") is None:
+            return self._simulate(brief, model)
 
-        command = [goose_bin, "run", "-t", brief]
-        result = self._run_subprocess(command)
+        # Prefer a non-interactive generation via the REST API.
+        try:
+            import httpx
+
+            resp = httpx.post(
+                f"{self.host}/api/generate",
+                json={"model": model, "prompt": brief, "stream": False},
+                timeout=self.timeout,
+            )
+            if resp.status_code < 300:
+                return OllamaResult(
+                    ok=True, brief=brief, model=model,
+                    command=f"POST {self.host}/api/generate",
+                    returncode=0, stdout=resp.json().get("response", "")[:8000],
+                    stderr="", cwd=os.getcwd(), status="success",
+                    metadata={"timeout": self.timeout, "fallback": False},
+                )
+        except Exception:  # noqa: BLE001
+            pass
+
+        result = self._run_subprocess(["ollama", "run", model, brief])
         if not result.ok and self.fallback_on_failure:
-            simulated = self._simulate(brief)
+            simulated = self._simulate(brief, model)
             simulated.metadata["original_error"] = result.stderr[:500]
             return simulated
         return result
@@ -154,11 +174,16 @@ class GooseAdapter:
     async def run(self, node: RepoNode, payload: dict[str, Any]) -> dict[str, Any]:
         self._check_network_policy(node)
         brief = payload.get("brief") or payload.get("intent") or ""
-        result = self._simulate(brief) if payload.get("simulate") else self.dispatch(brief=brief)
+        if payload.get("simulate"):
+            model = payload.get("model") or _infer_model(brief)
+            result = self._simulate(brief, model)
+        else:
+            result = self.dispatch(brief=brief, model=payload.get("model"), project_name=payload.get("project_name"))
         return result.metadata | {
             "module": node.name,
             "status": result.status,
             "brief": result.brief,
+            "model": result.model,
             "command": result.command,
             "returncode": result.returncode,
             "stdout": result.stdout,
@@ -167,11 +192,25 @@ class GooseAdapter:
         }
 
 
-def _make_goose(config, network_policy, audit_logger, task):
-    from sahiixx_agency.adapters.agent_cli.goose_adapter import GooseAdapter
+def _infer_model(text: str) -> str:
+    lowered = text.lower()
+    for key, model in (
+        ("qwen", "qwen2.5"),
+        ("llama", "llama3.1"),
+        ("mistral", "mistral"),
+        ("deepseek", "deepseek-coder"),
+        ("gemma", "gemma2"),
+    ):
+        if key in lowered:
+            return model
+    return "llama3.1"
 
-    adapter = GooseAdapter(
-        clone_base_dir=os.path.join(config.data_dir, "repos"),
+
+def _make_ollama(config, network_policy, audit_logger, task):
+    from sahiixx_agency.adapters.model.ollama_adapter import OllamaAdapter
+
+    adapter = OllamaAdapter(
+        host=os.environ.get("OLLAMA_BASE_URL", DEFAULT_OLLAMA_HOST),
         network_policy=network_policy,
         audit_logger=audit_logger,
     )

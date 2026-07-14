@@ -270,6 +270,48 @@ def _make_goose(config, network_policy, audit_logger, task):
     return adapter, payload
 
 
+def _make_ollama(config, network_policy, audit_logger, task):
+    from sahiixx_agency.adapters.model.ollama_adapter import OllamaAdapter
+
+    adapter = OllamaAdapter(
+        network_policy=network_policy,
+        audit_logger=audit_logger,
+    )
+    payload = dict(task.payload)
+    payload.setdefault("brief", task.intent)
+    return adapter, payload
+
+
+def _make_coding_cli_agent(binary: str):
+    def _factory(config, network_policy, audit_logger, task):
+        from sahiixx_agency.adapters.agent_cli.coding_cli_adapter import (
+            CodingAgentCliAdapter,
+        )
+
+        adapter = CodingAgentCliAdapter(
+            binary=binary,
+            network_policy=network_policy,
+            audit_logger=audit_logger,
+        )
+        payload = dict(task.payload)
+        payload.setdefault("brief", task.intent)
+        return adapter, payload
+
+    return _factory
+
+
+def _make_qwen_code(config, network_policy, audit_logger, task):
+    return _make_coding_cli_agent("qwen")(config, network_policy, audit_logger, task)
+
+
+def _make_gemini_cli(config, network_policy, audit_logger, task):
+    return _make_coding_cli_agent("gemini")(config, network_policy, audit_logger, task)
+
+
+def _make_codex(config, network_policy, audit_logger, task):
+    return _make_coding_cli_agent("codex")(config, network_policy, audit_logger, task)
+
+
 _SPECIALIZED_ADAPTERS: dict[
     str,
     Callable[[AgencyConfig, NetworkPolicy, AuditLogger, AgencyTask], tuple[Any, dict[str, Any]]],
@@ -303,6 +345,12 @@ _SPECIALIZED_ADAPTERS: dict[
     "scrapling": _make_scrapling,
     "mineru": _make_mineru,
     "goose": _make_goose,
+    "ollama": _make_ollama,
+    "adk": _make_agentic_framework_adapter("adk"),
+    "genkit": _make_agentic_framework_adapter("genkit"),
+    "qwen_code": _make_qwen_code,
+    "gemini_cli": _make_gemini_cli,
+    "codex": _make_codex,
 }
 
 

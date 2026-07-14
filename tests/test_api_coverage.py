@@ -303,3 +303,35 @@ def test_dashboard_graph_data(client):
     assert "categories" in data
     assert "stats" in data
     assert data["stats"]["totalRepos"] >= 1
+
+
+def test_dashboard_graph_data_includes_ecosystem_stubs(client):
+    """Promoted ecosystem modules (from config) should appear as graph nodes."""
+    from sahiixx_agency.api.main import app, get_engine
+
+    engine = app.dependency_overrides[get_engine]()
+    engine.config.ecosystem["trufflehog"] = {
+        "repo": "trufflehog",
+        "owner": "trufflesecurity",
+        "url": "https://github.com/trufflesecurity/trufflehog",
+        "role": "Find leaked credentials across codebases",
+        "bus_channel": "security.*",
+        "protocol": "subprocess",
+        "priority": 2,
+        "tags": ["security", "trufflehog"],
+    }
+
+    response = client.get("/dashboard/graph-data")
+    assert response.status_code == 200
+    data = response.json()
+    ids = {n["id"] for n in data["nodes"]}
+    assert "trufflehog" in ids
+    promoted = [n for n in data["nodes"] if n.get("era") == "promoted"]
+    assert promoted, "expected at least one 'promoted' era node"
+    # Promoted nodes must carry the fields the dashboard expects.
+    for n in promoted:
+        assert {"id", "name", "category", "url", "description"} <= set(n)
+    # Promoted stubs should be linked into the graph by category.
+    linked = {link["source"] for link in data["links"]} | {link["target"] for link in data["links"]}
+    promoted_ids = {n["id"] for n in promoted}
+    assert promoted_ids & linked, "promoted nodes should be connected to the graph"

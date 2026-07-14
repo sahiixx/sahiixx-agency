@@ -21,6 +21,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from sahiixx_agency.api.skills import router as skills_router
+from sahiixx_agency.api.panac import router as panac_router
 from sahiixx_agency.core.engine import AgencyEngine
 from sahiixx_agency.core.models import (
     AgencyConfig,
@@ -56,12 +57,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             data = yaml.safe_load(f)
         config = AgencyConfig.model_validate(data)
     _engine = AgencyEngine(config)
+    app.state.panac_memory = _engine.memory
     await _engine.start_worker()
     # Auto-sync on startup if registry is empty
     if not _engine.registry.modules:
         await _engine.sync_repos(config.github_username)
     yield
     await _engine.stop_worker()
+    del app.state.panac_memory
     _engine = None
 
 
@@ -99,6 +102,7 @@ app.include_router(jarvis_router)
 
 # GCC Outbound skills API (already at /api via router prefix, so include without additional prefix)
 app.include_router(skills_router)
+app.include_router(panac_router)
 
 
 # Mutating paths that are invoked by external services and therefore cannot
@@ -1015,20 +1019,48 @@ async def telegram_webhook(
     return {"status": "ok"}
 
 
+def _eco_category(bus_channel: str) -> str:
+    """Map an ecosystem bus_channel (e.g. 'security.*') to a graph category label."""
+    part = bus_channel.split(".")[0] if bus_channel else "other"
+    mapping = {
+        "security": "Security",
+        "framework": "Agent Framework",
+        "agent": "Agents",
+        "mcp": "Mcp Tool",
+        "voice": "Voice Ai",
+        "realestate": "RealEstate",
+        "career": "Career",
+        "knowledge": "Knowledge",
+        "content_media": "Content Media",
+        "automation": "Automation",
+        "extraction": "Extraction",
+        "scraper": "Scraper",
+        "model": "Model",
+    }
+    return mapping.get(part, part.replace("_", " ").title())
+
+
 @app.get("/dashboard/graph-data")
 async def graph_data(engine: Annotated[AgencyEngine, Depends(get_engine)]) -> dict[str, Any]:
-    """Serve graph data for the React dashboard."""
+    """Serve graph data for the React dashboard.
+
+    Includes both synced registry modules and the curated ecosystem stubs so
+    promoted starred repos (e.g. via ``opa sync --promote-stars``) appear in the
+    D3 graph.
+    """
     nodes = []
     links = []
     categories = set()
     layers = set()
     eras = set()
+    seen: set[str] = set()
 
     for mod in engine.registry.modules:
         cat = mod.category.value.replace("_", " ").title()
         categories.add(cat)
         layers.add(mod.language or "Unknown")
         eras.add("recent" if mod.updated_at and (mod.updated_at.year >= 2025) else "landmark")
+        seen.add(mod.id)
         nodes.append(
             {
                 "id": mod.id,
@@ -1044,7 +1076,31 @@ async def graph_data(engine: Annotated[AgencyEngine, Depends(get_engine)]) -> di
             }
         )
 
-    # Simple linking by shared language
+    # Promoted ecosystem stubs (skipped if already present as a synced module).
+    for eid, eco in engine.config.ecosystem.items():
+        if eid in seen:
+            continue
+        cat = _eco_category(eco.get("bus_channel", ""))
+        categories.add(cat)
+        layers.add("Ecosystem")
+        eras.add("promoted")
+        seen.add(eid)
+        nodes.append(
+            {
+                "id": eid,
+                "name": eco.get("repo", eid),
+                "stars": 0,
+                "category": cat,
+                "layer": "Ecosystem",
+                "era": "promoted",
+                "url": eco.get("url", ""),
+                "description": eco.get("role", ""),
+                "language": "Unknown",
+                "why": " | ".join(eco.get("tags", [])) or eco.get("role", "Ecosystem module"),
+            }
+        )
+
+    # Simple linking by shared language (registry modules)
     by_lang: dict[str, list[str]] = {}
     for mod in engine.registry.modules:
         lang = mod.language or "Unknown"
@@ -1060,6 +1116,35 @@ async def graph_data(engine: Annotated[AgencyEngine, Depends(get_engine)]) -> di
                         "type": "related",
                         "strength": 0.5,
                     }
+                )
+
+    # Link nodes that share a category (connects promoted stubs to the graph)
+    by_cat: dict[str, list[str]] = {}
+    for n in nodes:
+        by_cat.setdefault(n["category"], []).append(n["id"])
+
+    for _cat, ids in by_cat.items():
+        for i in range(len(ids)):
+            for j in range(i + 1, min(i + 3, len(ids))):
+                links.append(
+                    {
+                        "source": ids[i],
+                        "target": ids[j],
+                        "type": "related",
+                        "strength": 0.3,
+                    }
+                )
+
+    # Guarantee promoted stubs are connected to the main graph (hub on a
+    # registry module) so they never appear as isolated nodes.
+    registry_ids = [n["id"] for n in nodes if n.get("era") != "promoted"]
+    promoted_ids_list = [n["id"] for n in nodes if n.get("era") == "promoted"]
+    if promoted_ids_list and registry_ids:
+        hub = registry_ids[0]
+        for pid in promoted_ids_list:
+            if pid != hub:
+                links.append(
+                    {"source": pid, "target": hub, "type": "promoted", "strength": 0.2}
                 )
 
     return {

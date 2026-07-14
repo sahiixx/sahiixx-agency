@@ -82,6 +82,7 @@ export const ERA_COLORS: Record<string, string> = {
   trending: '#ef4444',
   recent: '#f59e0b',
   landmark: '#22c55e',
+  promoted: '#a855f7',
 }
 
 export function nodeRadius(stars: number) {

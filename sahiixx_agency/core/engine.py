@@ -188,6 +188,49 @@ def _make_postiz(config, network_policy, audit_logger, task):
     return adapter, task.payload
 
 
+def _make_agentic_framework_adapter(framework: str):
+    def _factory(config, network_policy, audit_logger, task):
+        from sahiixx_agency.adapters.framework.agentic_framework_adapter import (
+            AgenticFrameworkAdapter,
+        )
+
+        adapter = AgenticFrameworkAdapter(
+            framework=framework,
+            clone_base_dir=os.path.join(config.data_dir, "repos"),
+            network_policy=network_policy,
+            audit_logger=audit_logger,
+        )
+        payload = dict(task.payload)
+        payload.setdefault("brief", task.intent)
+        return adapter, payload
+
+    return _factory
+
+
+def _make_n8n(config, network_policy, audit_logger, task):
+    from sahiixx_agency.adapters.automation.n8n_adapter import N8nAdapter
+
+    adapter = N8nAdapter(
+        network_policy=network_policy,
+        audit_logger=audit_logger,
+    )
+    payload = dict(task.payload)
+    payload.setdefault("brief", task.intent)
+    return adapter, payload
+
+
+def _make_lobehub(config, network_policy, audit_logger, task):
+    from sahiixx_agency.adapters.automation.lobehub_adapter import LobeHubAdapter
+
+    adapter = LobeHubAdapter(
+        network_policy=network_policy,
+        audit_logger=audit_logger,
+    )
+    payload = dict(task.payload)
+    payload.setdefault("brief", task.intent)
+    return adapter, payload
+
+
 _SPECIALIZED_ADAPTERS: dict[
     str,
     Callable[[AgencyConfig, NetworkPolicy, AuditLogger, AgencyTask], tuple[Any, dict[str, Any]]],
@@ -207,6 +250,15 @@ _SPECIALIZED_ADAPTERS: dict[
     "postiz": _make_postiz,
     "gcc_outbound": _make_gcc_outbound,
     "gcc-outbound": _make_gcc_outbound,
+    "langchain": _make_agentic_framework_adapter("langchain"),
+    "autogen": _make_agentic_framework_adapter("autogen"),
+    "crewai": _make_agentic_framework_adapter("crewai"),
+    "openai_agents": _make_agentic_framework_adapter("openai_agents"),
+    "agent_framework": _make_agentic_framework_adapter("agent_framework"),
+    "camel": _make_agentic_framework_adapter("camel"),
+    "deerflow": _make_agentic_framework_adapter("deerflow"),
+    "n8n": _make_n8n,
+    "lobehub": _make_lobehub,
 }
 
 

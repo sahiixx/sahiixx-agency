@@ -367,6 +367,97 @@ ecosystem:
       api_base: "http://localhost:3000/public/v1"
       supported_platforms: [x, linkedin, instagram, facebook, youtube, tiktok, reddit, threads, mastodon, bluesky]
 
+  # ── Starred agentic frameworks (promoted from docs/ecosystem-candidates.md) ──
+  langchain:
+    repo: langchain
+    owner: langchain-ai
+    url: https://github.com/langchain-ai/langchain
+    role: "Agent engineering platform — chains, tools, RAG, orchestration"
+    bus_channel: "framework.*"
+    protocol: python-lib
+    priority: 2
+    tags: [framework, agents, rag, langchain, orchestration]
+
+  autogen:
+    repo: autogen
+    owner: microsoft
+    url: https://github.com/microsoft/autogen
+    role: "Programming framework for agentic AI — multi-agent conversation"
+    bus_channel: "framework.*"
+    protocol: python-lib
+    priority: 2
+    tags: [framework, agents, microsoft, multi-agent, autogen]
+
+  crewai:
+    repo: crewAI
+    owner: crewAIInc
+    url: https://github.com/crewAIInc/crewAI
+    role: "Role-playing autonomous AI agents collaborating on tasks"
+    bus_channel: "framework.*"
+    protocol: python-lib
+    priority: 2
+    tags: [framework, agents, crewai, multi-agent, collaboration]
+
+  openai_agents:
+    repo: openai-agents-python
+    owner: openai
+    url: https://github.com/openai/openai-agents-python
+    role: "Lightweight multi-agent workflow framework"
+    bus_channel: "framework.*"
+    protocol: python-lib
+    priority: 2
+    tags: [framework, agents, openai, multi-agent]
+
+  agent_framework:
+    repo: agent-framework
+    owner: microsoft
+    url: https://github.com/microsoft/agent-framework
+    role: "Build/orchestrate/deploy AI agents and multi-agent workflows (Python + .NET)"
+    bus_channel: "framework.*"
+    protocol: python-lib
+    priority: 2
+    tags: [framework, agents, microsoft, orchestration]
+
+  deerflow:
+    repo: deer-flow
+    owner: bytedance
+    url: https://github.com/bytedance/deer-flow
+    role: "Long-horizon SuperAgent harness — research, code, create with sandboxes"
+    bus_channel: "framework.*"
+    protocol: subprocess
+    priority: 2
+    tags: [framework, agents, bytedance, superagent, research]
+
+  lobehub:
+    repo: lobehub
+    owner: lobehub
+    url: https://github.com/lobehub/lobehub
+    role: "Chief Agent Operator — hire, schedule, report on your AI team"
+    bus_channel: "framework.*"
+    protocol: api
+    priority: 2
+    tags: [framework, agents, lobehub, operator, management]
+
+  n8n:
+    repo: n8n
+    owner: n8n-io
+    url: https://github.com/n8n-io/n8n
+    role: "Fair-code workflow automation with native AI — 400+ integrations"
+    bus_channel: "framework.*"
+    protocol: api
+    priority: 2
+    tags: [framework, workflow, automation, n8n, integration]
+
+  camel:
+    repo: camel
+    owner: camel-ai
+    url: https://github.com/camel-ai/camel
+    role: "Multi-agent framework — collaborative intelligence, scaling laws of agents"
+    bus_channel: "framework.*"
+    protocol: python-lib
+    priority: 2
+    tags: [framework, agents, camel, multi-agent]
+
 # ─── Routing Rules ─────────────────────────────────────────────
 routing_rules:
   - pattern: "t3mp3st|red.team|offensive|0-day|zero.day|exploit|pentest|recon|scan|vuln|vulnerability|security|cve|hunt|threat|attack|ctf|pwn|bug.bounty|osint"
@@ -407,4 +498,22 @@ routing_rules:
     target: gcc_outbound
   - pattern: "post|schedule.post|social.media|content.calendar|publish|share.to|cross.post|buffer|hootsuite"
     target: postiz
+  - pattern: "langchain|lang graph|rag chain|langsmith"
+    target: langchain
+  - pattern: "autogen|multi-agent conversation|microsoft agent"
+    target: autogen
+  - pattern: "crewai|crew of agents|role-playing agent"
+    target: crewai
+  - pattern: "openai agents|agents sdk|openai-agents"
+    target: openai_agents
+  - pattern: "agent framework|microsoft agent-framework"
+    target: agent_framework
+  - pattern: "deer-flow|superagent|long-horizon agent|research agent"
+    target: deerflow
+  - pattern: "lobehub|agent operator|hire agent|ai team"
+    target: lobehub
+  - pattern: "n8n|workflow automation|automation workflow|integrate.*workflow"
+    target: n8n
+  - pattern: "camel-ai|camel agent|collaborative agent"
+    target: camel
 

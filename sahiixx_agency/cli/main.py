@@ -98,12 +98,38 @@ def get_engine() -> AgencyEngine:
 @app.command()
 def sync(
     username: str = typer.Option("sahiixx", "--user", "-u", help="GitHub username to sync"),
+    promote_stars: bool = typer.Option(
+        False, "--promote-stars", help="Also promote starred repos into ecosystem modules"
+    ),
 ) -> None:
     """Sync all GitHub repos into the agency registry."""
     engine = AgencyEngine(_load_config())
     with console.status("[bold green]Discovering repos..."):
         discovered = asyncio.run(engine.sync_repos(username))
     console.print(Panel(f"Synced [bold]{len(discovered)}[/bold] repos", title="Registry Sync", border_style="green"))
+
+    if promote_stars:
+        from sahiixx_agency.discovery.star_promoter import (
+            apply_to_agency_yaml,
+            fetch_stars,
+            generate_promotions,
+            load_existing,
+        )
+
+        config_path = os.environ.get("OPA_CONFIG", "./config/agency.yaml")
+        existing_keys, existing_targets = load_existing(config_path)
+        stars = asyncio.run(fetch_stars(username, os.environ.get("GITHUB_TOKEN")))
+        if not stars:
+            console.print("[yellow]No starred repos fetched (offline or no token).[/yellow]")
+            return
+        additions = generate_promotions(stars, existing_keys, existing_targets)
+        if not additions["ecosystem"]:
+            console.print("[green]No new starred repos to promote.[/green]")
+            return
+        apply_to_agency_yaml(config_path, additions)
+        console.print(
+            f"[green]Promoted [bold]{len(additions['ecosystem'])}[/bold] starred repos into {config_path}[/green]"
+        )
 
 
 @app.command()

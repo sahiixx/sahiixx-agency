@@ -121,3 +121,55 @@ def test_telegram_bot_requires_token(monkeypatch):
     result = runner.invoke(app, ["telegram-bot"])
     assert result.exit_code == 1
     assert "Telegram bot token is required" in result.stdout
+
+
+def test_sync_promote_stars_writes_new_modules(patched_engine, tmp_path, monkeypatch):
+    """`opa sync --promote-stars` should append starred repos to the config."""
+    import yaml
+
+    from sahiixx_agency.cli.main import app as _app
+
+    # Point OPA_CONFIG at a temp copy of the real config.
+    src = (
+        __import__("pathlib").Path(__file__).resolve().parents[1]
+        / "config"
+        / "agency.yaml"
+    )
+    tmp_config = tmp_path / "agency.yaml"
+    tmp_config.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+    monkeypatch.setenv("OPA_CONFIG", str(tmp_config))
+    monkeypatch.setenv("GITHUB_TOKEN", "")
+
+    sample_stars = [
+        {
+            "full_name": "google/adk-python",
+            "name": "adk-python",
+            "owner": "google",
+            "html_url": "https://github.com/google/adk-python",
+            "description": "Google Agent Development Kit for building agents",
+        },
+        {
+            "full_name": "someuser/awesome-video-tool",
+            "name": "awesome-video-tool",
+            "owner": "someuser",
+            "html_url": "https://github.com/someuser/awesome-video-tool",
+            "description": "A tool to montage and edit videos",
+        },
+    ]
+
+    async def fake_fetch(*args, **kwargs):
+        return sample_stars
+
+    monkeypatch.setattr(
+        "sahiixx_agency.discovery.star_promoter.fetch_stars", fake_fetch
+    )
+
+    result = runner.invoke(_app, ["sync", "--promote-stars", "-u", "sahiixx"])
+    assert result.exit_code == 0, result.stdout
+
+    data = yaml.safe_load(tmp_config.read_text(encoding="utf-8"))
+    assert "adk_python" in data["ecosystem"]
+    assert "awesome_video_tool" in data["ecosystem"]
+    targets = {r["target"] for r in data["routing_rules"]}
+    assert "adk_python" in targets
+    assert "awesome_video_tool" in targets

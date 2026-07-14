@@ -570,8 +570,63 @@ ecosystem:
     priority: 2
     tags: [agent, cli, codex, openai, coding, coding-agent]
 
+  # ── Batch 4 — remaining executable stars ──
+  trufflehog:
+    repo: trufflehog
+    owner: trufflesecurity
+    url: https://github.com/trufflesecurity/trufflehog
+    role: "Secret scanner — find leaked credentials across codebases"
+    bus_channel: "security.*"
+    protocol: subprocess
+    priority: 2
+    tags: [security, secrets, scan, leak-detection, trufflehog]
+
+  shannon:
+    repo: shannon
+    owner: KeygraphHQ
+    url: https://github.com/KeygraphHQ/shannon
+    role: "AI pentester that autonomously finds and exploits vulnerabilities"
+    bus_channel: "security.*"
+    protocol: subprocess
+    priority: 2
+    tags: [security, pentest, ai-pentest, exploit, shannon]
+
+  rag_anything:
+    repo: RAG-Anything
+    owner: HKUDS
+    url: https://github.com/HKUDS/RAG-Anything
+    role: "Multi-modal RAG system — ingest documents and answer over them"
+    bus_channel: "framework.*"
+    protocol: python-lib
+    priority: 2
+    tags: [framework, rag, retrieval, multimodal, hkuds]
+
+  hermes:
+    repo: hermes-agent
+    owner: sahiixx
+    url: https://github.com/sahiixx/hermes-agent
+    role: "The agent that grows with you — adaptive personal assistant"
+    bus_channel: "framework.*"
+    protocol: python-lib
+    priority: 2
+    tags: [framework, agent, personal-ai, adaptive, hermes]
+
+  chrome_devtools_mcp:
+    repo: chrome-devtools-mcp
+    owner: modelcontextprotocol
+    url: https://github.com/modelcontextprotocol/chrome-devtools-mcp
+    role: "MCP server exposing Chrome DevTools for browser automation"
+    bus_channel: "mcp.*"
+    protocol: mcp
+    priority: 2
+    tags: [mcp, browser, devtools, automation, chrome]
+
 # ─── Routing Rules ─────────────────────────────────────────────
 routing_rules:
+  - pattern: "trufflehog|secret scan|leaked credential|find secrets|scan for secrets|scan.*leak"
+    target: trufflehog
+  - pattern: "shannon|ai pentest|autonomous pentest|self-driving pentest|autonomously find vulnerability"
+    target: shannon
   - pattern: "t3mp3st|red.team|offensive|0-day|zero.day|exploit|pentest|recon|scan|vuln|vulnerability|security|cve|hunt|threat|attack|ctf|pwn|bug.bounty|osint"
     target: T3MP3ST
   - pattern: "voice|speak|listen|call"
@@ -650,4 +705,10 @@ routing_rules:
     target: gemini_cli
   - pattern: "codex|openai codex|coding agent terminal"
     target: codex
+  - pattern: "rag-anything|rag anything|multimodal rag|ingest document|answer over documents"
+    target: rag_anything
+  - pattern: "hermes|hermes agent|adaptive assistant|grows with you|personal agent that learns"
+    target: hermes
+  - pattern: "chrome.?devtools|devtools mcp|chrome mcp|browser automation.*mcp|automate chrome"
+    target: chrome_devtools_mcp
 

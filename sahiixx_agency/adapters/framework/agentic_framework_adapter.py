@@ -96,6 +96,61 @@ brief = "{brief}"
 print(f"DeerFlow SuperAgent brief ready: {{brief}}")
 sys.exit(0)
 ''',
+    "langgraph": '''\
+"""OPA-scaffolded LangGraph agent."""
+from langgraph.graph import StateGraph, START, END
+
+def node(state: dict) -> dict:
+    state["result"] = "{brief}"
+    return state
+
+builder = StateGraph(dict)
+builder.add_node("step", node)
+builder.add_edge(START, "step")
+builder.add_edge("step", END)
+if __name__ == "__main__":
+    print(builder.compile().invoke({{}}))
+''',
+    "adk": '''\
+"""OPA-scaffolded Google ADK agent."""
+from google.adk.agents import Agent
+
+agent = Agent(name="opa_agent", instruction="{brief}")
+if __name__ == "__main__":
+    print("Google ADK agent ready for:", "{brief}")
+''',
+    "genkit": '''\
+"""OPA-scaffolded Genkit agent."""
+from genkit import genkit
+from genkit.extensions.googleai import googleAI
+
+ai = genkit(plugins=[googleAI()])
+agent = ai.agent(name="opa_agent", instruction="{brief}")
+if __name__ == "__main__":
+    print(agent.generate("{brief}").text)
+''',
+    "rag_anything": '''\
+"""OPA-scaffolded RAG-Anything pipeline."""
+from raganything import RAGAnything
+
+async def main():
+    rag = RAGAnything()
+    await rag.process_document("{brief}")
+    answer = await rag.query("{brief}")
+    print(answer)
+
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(main())
+''',
+    "hermes": '''\
+"""OPA-scaffolded Hermes agent."""
+from hermes import Hermes
+
+agent = Hermes(memory="episodic", goal="{brief}")
+if __name__ == "__main__":
+    print(agent.run("{brief}"))
+''',
 }
 
 _FRAMEWORK_INTERPRETER: dict[str, str] = {

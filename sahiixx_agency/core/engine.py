@@ -312,6 +312,37 @@ def _make_codex(config, network_policy, audit_logger, task):
     return _make_coding_cli_agent("codex")(config, network_policy, audit_logger, task)
 
 
+def _make_trufflehog(config, network_policy, audit_logger, task):
+    from sahiixx_agency.adapters.security.security_cli_adapter import (
+        _make_security_cli,
+    )
+
+    return _make_security_cli("trufflehog", ["filesystem", "."])(
+        config, network_policy, audit_logger, task
+    )
+
+
+def _make_shannon(config, network_policy, audit_logger, task):
+    from sahiixx_agency.adapters.security.security_cli_adapter import (
+        _make_security_cli,
+    )
+
+    return _make_security_cli("shannon", [])(config, network_policy, audit_logger, task)
+
+
+def _make_chrome_devtools_mcp(config, network_policy, audit_logger, task):
+    from sahiixx_agency.adapters.mcp.runner import McpAdapter
+
+    adapter = McpAdapter(
+        clone_base_dir=os.path.join(config.data_dir, "repos"),
+        network_policy=network_policy,
+        audit_logger=audit_logger,
+    )
+    payload = dict(task.payload)
+    payload.setdefault("command", "run")
+    return adapter, payload
+
+
 _SPECIALIZED_ADAPTERS: dict[
     str,
     Callable[[AgencyConfig, NetworkPolicy, AuditLogger, AgencyTask], tuple[Any, dict[str, Any]]],
@@ -351,6 +382,11 @@ _SPECIALIZED_ADAPTERS: dict[
     "qwen_code": _make_qwen_code,
     "gemini_cli": _make_gemini_cli,
     "codex": _make_codex,
+    "trufflehog": _make_trufflehog,
+    "shannon": _make_shannon,
+    "rag_anything": _make_agentic_framework_adapter("rag_anything"),
+    "hermes": _make_agentic_framework_adapter("hermes"),
+    "chrome_devtools_mcp": _make_chrome_devtools_mcp,
 }
 
 

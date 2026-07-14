@@ -107,6 +107,44 @@ def sync(
 
 
 @app.command()
+def promote_stars(
+    username: str = typer.Option("sahiixx", "--user", "-u", help="GitHub username whose stars to promote"),
+    write: bool = typer.Option(False, "--write", help="Append promoted stubs/rules to config/agency.yaml (default: dry-run)"),
+    config_path: str = typer.Option("./config/agency.yaml", "--config", help="Path to agency.yaml"),
+) -> None:
+    """Promote GitHub starred repos into ecosystem modules (dry-run by default)."""
+    from sahiixx_agency.discovery.star_promoter import (
+        apply_to_agency_yaml,
+        fetch_stars,
+        generate_promotions,
+        load_existing,
+        render_yaml,
+    )
+
+    existing_keys, existing_targets = load_existing(config_path)
+    stars = asyncio.run(fetch_stars(username, os.environ.get("GITHUB_TOKEN")))
+    if not stars:
+        console.print("[yellow]No starred repos fetched (offline or no token).[/yellow]")
+        raise typer.Exit(0)
+    additions = generate_promotions(stars, existing_keys, existing_targets)
+    if not additions["ecosystem"]:
+        console.print("[green]Nothing new to promote - all starred repos already wired.[/green]")
+        raise typer.Exit(0)
+    console.print(
+        Panel(
+            render_yaml(additions),
+            title=f"Promote {len(additions['ecosystem'])} starred repos",
+            border_style="cyan",
+        )
+    )
+    if write:
+        count = apply_to_agency_yaml(config_path, additions)
+        console.print(f"[green]Wrote {count} entries to {config_path}[/green]")
+    else:
+        console.print("[dim]Dry-run only. Re-run with --write to append to agency.yaml.[/dim]")
+
+
+@app.command()
 def registry(
     category: str = typer.Option(None, "--category", "-c", help="Filter by category"),
     sort: str = typer.Option("stars", "--sort", "-s", help="Sort by: stars, updated, name"),

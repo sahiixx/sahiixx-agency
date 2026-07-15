@@ -343,6 +343,15 @@ def _make_chrome_devtools_mcp(config, network_policy, audit_logger, task):
     return adapter, payload
 
 
+def _make_discovery(config, network_policy, audit_logger, task):
+    from sahiixx_agency.adapters.discovery_adapter import DiscoveryAdapter
+
+    adapter = DiscoveryAdapter(github_token=config.github_token)
+    payload = dict(task.payload)
+    payload.setdefault("report_type", "trending")
+    return adapter, payload
+
+
 _SPECIALIZED_ADAPTERS: dict[
     str,
     Callable[[AgencyConfig, NetworkPolicy, AuditLogger, AgencyTask], tuple[Any, dict[str, Any]]],
@@ -387,6 +396,8 @@ _SPECIALIZED_ADAPTERS: dict[
     "rag_anything": _make_agentic_framework_adapter("rag_anything"),
     "hermes": _make_agentic_framework_adapter("hermes"),
     "chrome_devtools_mcp": _make_chrome_devtools_mcp,
+    "discovery": _make_discovery,
+    "intel_scout": _make_discovery,
 }
 
 

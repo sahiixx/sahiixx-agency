@@ -117,6 +117,15 @@ ecosystem:
     priority: 1
 
   # ── Intelligence Modules ──
+  discovery:
+    repo: sahiixx-agency
+    url: https://github.com/sahiixx/sahiixx-agency
+    role: "GitHub discovery / intel scout — trending, velocity, hidden-gem repos"
+    bus_channel: "discovery.*"
+    protocol: internal
+    category: agent_framework
+    tags: [discovery, intel, trending, github]
+
   memory:
     repo: sahiixx-titans-memory
     url: https://github.com/sahiixx/sahiixx-titans-memory
@@ -623,6 +632,8 @@ ecosystem:
 
 # ─── Routing Rules ─────────────────────────────────────────────
 routing_rules:
+  - pattern: "trending repo|trending github|trending project|discover.*(repo|project|github)|find.*trending|scout.*(repo|github)|hidden gem|new github project|intel scout|what.*trending.*(repo|github)"
+    target: discovery
   - pattern: "trufflehog|secret scan|leaked credential|find secrets|scan for secrets|scan.*leak"
     target: trufflehog
   - pattern: "shannon|ai pentest|autonomous pentest|self-driving pentest|autonomously find vulnerability"

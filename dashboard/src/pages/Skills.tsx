@@ -46,7 +46,7 @@ async function runSkill(skillId: string, payload: Record<string, unknown>): Prom
   const res = await fetch(`${API_BASE}/api/skills/${skillId}/run`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ payload }),
+    body: JSON.stringify(payload),
   })
   if (!res.ok) throw new Error(`Run failed: ${res.status}`)
   return res.json()

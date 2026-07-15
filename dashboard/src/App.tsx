@@ -12,6 +12,7 @@ import MarketplacePage from './pages/Marketplace'
 import { JarvisPage } from './components/jarvis/JarvisPage'
 import { JarvisGUI } from './components/jarvis/JarvisGUI'
 import Skills from './pages/Skills'
+import Panac from './pages/Panac'
 import { TodoPage } from './components/todos/TodoPage'
 import { ContactPage } from './components/contact/ContactPage'
 import { AboutPage } from './components/about/AboutPage'
@@ -103,6 +104,7 @@ export default function App() {
               <Route path="/workflows" element={<Workflows />} />
               <Route path="/metrics" element={<Metrics />} />
               <Route path="/skills" element={<Skills />} />
+              <Route path="/panac" element={<Panac />} />
               <Route path="/llm" element={<LLMPage />} />
               <Route path="/marketplace" element={<MarketplacePage />} />
               <Route path="/jarvis" element={<JarvisPage />} />

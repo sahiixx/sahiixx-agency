@@ -110,3 +110,41 @@ async def test_workflow_webhook_step(engine):
     assert hook_state.status == WorkflowStepStatus.FAILED
     assert hook_state.result is not None
     assert hook_state.result.get("ok") is False
+
+
+@pytest.mark.asyncio
+async def test_seed_trending_pipeline_runs_end_to_end(engine):
+    """The seeded trending pipeline should discover -> sync -> notify successfully."""
+    seeded = engine.seed_defaults()
+    assert any(d.id == "trending-content-pipeline" for d in seeded)
+
+    definition = engine.get_definition("trending-content-pipeline")
+    assert definition is not None
+    # The discovery step must target a routable module (regression guard against
+    # the old broken "run discovery pipeline" intent that routed to None).
+    discover_step = next(s for s in definition.steps if s.id == "discover")
+    assert discover_step.target == "discovery"
+
+    dispatched: list[str] = []
+
+    async def fake_dispatch(intent, payload):
+        dispatched.append(intent)
+        return {"intent": intent, "payload": payload, "status": "completed"}
+
+    notified: list[str] = []
+
+    async def fake_notify(channel, title, body):
+        notified.append(title)
+
+    instance = engine.create_instance("trending-content-pipeline")
+    assert instance is not None
+    result = await engine.run_instance(instance.id, dispatch=fake_dispatch, notify=fake_notify)
+    assert result is not None
+    assert result.status == WorkflowStatus.COMPLETED
+    # All three steps completed in order.
+    states = {s.step_id: s.status for s in result.step_states}
+    assert states["discover"] == WorkflowStepStatus.COMPLETED
+    assert states["sync"] == WorkflowStepStatus.COMPLETED
+    assert states["notify"] == WorkflowStepStatus.COMPLETED
+    assert len(dispatched) == 2
+    assert notified == ["Trending pipeline complete"]

@@ -62,3 +62,36 @@ def test_load_config_defaults_when_missing() -> None:
         assert config.github_username == "sahiixx"
     finally:
         mcp_main._engine = original_config
+
+
+@pytest.mark.asyncio
+async def test_discover_repos_tool_simulate() -> None:
+    """The discover_repos MCP tool should return a simulated discovery report."""
+    import json
+
+    result = await mcp_main.discover_repos(report_type="trending", simulate=True)
+    data = json.loads(result)
+    assert data["status"] == "simulated"
+    assert data["report_type"] == "trending"
+    assert data["repos_found"] == len(data["repos"])
+    assert data["repos_found"] > 0
+
+
+@pytest.mark.asyncio
+async def test_discover_repos_tool_parses_languages(monkeypatch) -> None:
+    """discover_repos should split the comma-separated languages arg into a list."""
+    import json
+
+    from sahiixx_agency.adapters.discovery_adapter import DiscoveryAdapter
+
+    captured: dict = {}
+
+    async def fake_execute(self, payload):  # noqa: ARG001
+        captured.update(payload)
+        return {"status": "success", "report_type": payload["report_type"], "repos_found": 0, "repos": []}
+
+    monkeypatch.setattr(DiscoveryAdapter, "execute", fake_execute)
+    result = await mcp_main.discover_repos(report_type="trending", languages="python, rust")
+    data = json.loads(result)
+    assert data["status"] == "success"
+    assert captured.get("languages") == ["python", "rust"]

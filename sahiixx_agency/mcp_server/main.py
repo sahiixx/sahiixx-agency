@@ -141,6 +141,37 @@ async def run_intel_scout(report_type: str = "trending") -> str:
 
 
 @mcp.tool()
+async def discover_repos(
+    report_type: str = "trending",
+    min_stars: int = 50,
+    languages: str = "",
+    simulate: bool = False,
+) -> str:
+    """Discover GitHub repositories via the DiscoveryAdapter.
+
+    Args:
+        report_type: "trending", "velocity", or "hidden_gems".
+        min_stars: Minimum star count for trending/velocity queries.
+        languages: Comma-separated language filters (e.g. "python,rust"). Optional.
+        simulate: If True, skip the network call and return a deterministic sample.
+    """
+    from sahiixx_agency.adapters.discovery_adapter import DiscoveryAdapter
+
+    engine = _get_engine()
+    adapter = DiscoveryAdapter(github_token=engine.config.github_token)
+    payload: dict[str, Any] = {
+        "report_type": report_type,
+        "min_stars": min_stars,
+        "simulate": simulate,
+    }
+    lang_list = [x.strip() for x in languages.split(",") if x.strip()]
+    if lang_list:
+        payload["languages"] = lang_list
+    result = await adapter.execute(payload)
+    return json.dumps(result, indent=2)
+
+
+@mcp.tool()
 async def agency_stats() -> str:
     """Get agency statistics."""
     return json.dumps(_get_engine().stats(), indent=2)
@@ -213,11 +244,11 @@ async def get_health() -> str:
 
 
 def main() -> None:
-    transport = os.environ.get("MCP_TRANSPORT", "stdio")
+    transport: str = os.environ.get("MCP_TRANSPORT", "stdio")
     if transport == "sse":
         mcp.settings.host = os.environ.get("MCP_HOST", "0.0.0.0")
         mcp.settings.port = int(os.environ.get("MCP_PORT", "8081"))
-    mcp.run(transport=transport)
+    mcp.run(transport=transport)  # type: ignore[arg-type]
 
 
 if __name__ == "__main__":

@@ -11,8 +11,12 @@
 
 ```powershell
 C:\Users\sahii\scripts\start-stack.ps1 -StartOpa -StartModularOs
-C:\Users\sahii\scripts\smoke-stack.ps1
+C:\Users\sahii\scripts\verify-stack.ps1 -SkipRealFire
 ```
+
+WSL services are most reliable via the **WSL eth IP** (`wsl hostname -I`) — Windows `127.0.0.1` port proxy sometimes handles GET but drops POST. `verify-stack.ps1` prefers the WSL IP automatically.
+
+`.wslconfig` has `autoMemoryReclaim=disabled` (applied 2026-07-16). Needs one `wsl --shutdown` + restart to take effect.
 
 ## WSL services
 

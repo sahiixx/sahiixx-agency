@@ -95,3 +95,4 @@ jarvis-deploy/
 jarvis_*.png
 jovi_*.png
 
+.worktrees/

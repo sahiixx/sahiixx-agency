@@ -25,6 +25,7 @@ data_test/discovery/
 
 # Runtime
 runtime-pids.json
+api.err
 tmp/
 
 # Testing
@@ -56,6 +57,17 @@ screenshots/
 scratch/
 *.tmp
 dashboard-*.png
+# Scratch device/jarvis screenshots
+dashboard_screenshot.png
+device_control_*.png
+device_overview_*.png
+device_processes_*.png
+device_services_*.png
+device_tab_*.png
+device_terminal_*.png
+jarvis_gui_screenshot*.png
+screenshot-jarvis-*.png
+postiz_screenshot.png
 
 # Environment / secrets
 .env
@@ -77,6 +89,7 @@ CLAUDE.md
 jarvis-electron/
 jarvis-native/
 jarvis-overlay/
+jarvis-deploy/
 
 # JARVIS screenshots
 jarvis_*.png

@@ -162,12 +162,13 @@ class GenericAdapter:
             }
 
     def _simulate(self, node: RepoNode, payload: dict[str, Any], reason: str, stderr: str = "") -> dict[str, Any]:
+        repo = self._repo_dir(node)
         return {
             "module": node.name,
             "status": "simulated",
             "command": payload.get("command") or "<inferred>",
             "stdout": f"[SIMULATED] Would run {node.full_name} with payload {payload}",
             "stderr": stderr or f"Fallback because: {reason}",
-            "repo_dir": node.local_path or "",
+            "repo_dir": str(repo) if repo is not None else (node.local_path or ""),
             "fallback": True,
         }

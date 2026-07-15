@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 from sahiixx_agency.discovery.entrypoint import detect_project_type, infer_entrypoint
@@ -15,10 +16,8 @@ def test_python_project(tmp_path: Path) -> None:
     (tmp_path / "main.py").write_text("print('hello')")
     (tmp_path / "requirements.txt").write_text("requests\n")
     assert detect_project_type(tmp_path) == "python"
-    assert infer_entrypoint(tmp_path) == [
-        ["pip", "install", "-r", "requirements.txt"],
-        ["python", "main.py"],
-    ]
+    # Uses OPA's interpreter; no auto-pip (PATH-safe on Windows, monorepo-safe).
+    assert infer_entrypoint(tmp_path) == [sys.executable, "main.py"]
 
 
 def test_makefile_project(tmp_path: Path) -> None:

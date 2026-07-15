@@ -7,6 +7,7 @@ import logging
 import os
 import shlex
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -80,28 +81,29 @@ class RepoInspector:
             "commands": {},
         }
 
-        # Python detection
+        # Python detection — use the interpreter running OPA (PATH-safe on Windows)
+        py = sys.executable or "python"
         python_files = list(self.path.glob("*.py"))
         if (self.path / "main.py").exists():
             result["runnable"] = True
             result["type"] = "python"
             result["entrypoint"] = "main.py"
-            result["commands"]["run"] = ["python", str(self.path / "main.py")]
+            result["commands"]["run"] = [py, str(self.path / "main.py")]
         elif (self.path / "app.py").exists():
             result["runnable"] = True
             result["type"] = "python"
             result["entrypoint"] = "app.py"
-            result["commands"]["run"] = ["python", str(self.path / "app.py")]
+            result["commands"]["run"] = [py, str(self.path / "app.py")]
         elif (self.path / "run.py").exists():
             result["runnable"] = True
             result["type"] = "python"
             result["entrypoint"] = "run.py"
-            result["commands"]["run"] = ["python", str(self.path / "run.py")]
+            result["commands"]["run"] = [py, str(self.path / "run.py")]
         elif python_files:
             result["runnable"] = True
             result["type"] = "python"
             result["entrypoint"] = python_files[0].name
-            result["commands"]["run"] = ["python", str(python_files[0])]
+            result["commands"]["run"] = [py, str(python_files[0])]
 
         # Node/TypeScript detection
         if (self.path / "package.json").exists():

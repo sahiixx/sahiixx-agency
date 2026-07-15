@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from typing import Any, cast
 
@@ -12,6 +13,11 @@ def _read_json(path: Path) -> dict[str, Any]:
         return cast(dict[str, Any], json.loads(path.read_text(encoding="utf-8")))
     except Exception:  # noqa: BLE001
         return {}
+
+
+def _python_bin() -> str:
+    """Prefer the interpreter running OPA so Windows hosts without python/pip on PATH still work."""
+    return sys.executable or "python"
 
 
 def detect_project_type(repo_dir: str | Path) -> str:
@@ -40,18 +46,16 @@ def _node_entrypoint(repo: Path) -> list[list[str]] | None:
 
 
 def _python_entrypoint(repo: Path) -> list[list[str]] | list[str] | None:
+    """Return a direct run of main/app/run.py using OPA's own interpreter.
+
+    Auto ``pip install`` is intentionally skipped: monorepos often have a root
+    pyproject unrelated to the smoke entrypoint, and bare ``pip``/``python``
+    are frequently missing from PATH on Windows services.
+    """
+    py = _python_bin()
     for script in ("main.py", "app.py", "run.py"):
         if (repo / script).exists():
-            install_cmd: list[list[str]] | list[str] = (
-                [["pip", "install", "-e", "."]]
-                if (repo / "pyproject.toml").exists()
-                else [["pip", "install", "-r", "requirements.txt"]]
-                if (repo / "requirements.txt").exists()
-                else []
-            )
-            if install_cmd:
-                return [*install_cmd, ["python", script]]
-            return ["python", script]
+            return [py, script]
     return None
 
 

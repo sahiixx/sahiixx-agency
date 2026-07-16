@@ -121,9 +121,22 @@ ecosystem:
     repo: sahiixx-agency
     url: https://github.com/sahiixx/sahiixx-agency
     role: "GitHub discovery / intel scout — trending, velocity, hidden-gem repos"
+    capabilities: [repo-discovery, intel-scout, capability-scoring]
+    category: agent_framework
     bus_channel: "discovery.*"
     protocol: internal
-    category: agent_framework
+    priority: 1
+  # ── Lead Machine (E2E Dubai RE pipeline) ──
+  lead_machine:
+    repo: sahiixx-agency
+    url: https://github.com/sahiixx/sahiixx-agency
+    role: "Lead qualification + routing for the Dubai RE revenue OS (NEXUS/SAHIIX OS)"
+    capabilities: [lead-qualification, intent-scoring, segment-tagging, pipeline-routing]
+    category: real_estate
+    bus_channel: "lead.*"
+    protocol: internal
+    priority: 1
+
     tags: [discovery, intel, trending, github]
 
   memory:
@@ -632,10 +645,15 @@ ecosystem:
 
 # ─── Routing Rules ─────────────────────────────────────────────
 routing_rules:
+  - pattern: 'github\.com/sahiixx/sahiixx|sahiixx profile|profile README|flagship projects.*registry|missing from the agency registry'
+    target: discovery
   - pattern: "trending repo|trending github|trending project|discover.*(repo|project|github)|find.*trending|scout.*(repo|github)|hidden gem|new github project|intel scout|what.*trending.*(repo|github)"
     target: discovery
+  - pattern: "qualify.*(lead|enquiry|prospect)|score.*lead|capture.*lead|lead.*intake|new lead|route.*lead|match.*(lead|property)|schedule.*(viewing|lead|call)"
+    target: lead_machine
   - pattern: "trufflehog|secret scan|leaked credential|find secrets|scan for secrets|scan.*leak"
     target: trufflehog
+
   - pattern: "shannon|ai pentest|autonomous pentest|self-driving pentest|autonomously find vulnerability"
     target: shannon
   - pattern: "t3mp3st|red.team|offensive|0-day|zero.day|exploit|pentest|recon|scan|vuln|vulnerability|security|cve|hunt|threat|attack|ctf|pwn|bug.bounty|osint"

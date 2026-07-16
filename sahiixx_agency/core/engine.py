@@ -352,6 +352,16 @@ def _make_discovery(config, network_policy, audit_logger, task):
     return adapter, payload
 
 
+def _make_lead_machine(config, network_policy, audit_logger, task):
+    from sahiixx_agency.adapters.qualification_agent import QualificationAgent
+
+    adapter = QualificationAgent(
+        network_policy=network_policy,
+        audit_logger=audit_logger,
+    )
+    return adapter, dict(task.payload)
+
+
 _SPECIALIZED_ADAPTERS: dict[
     str,
     Callable[[AgencyConfig, NetworkPolicy, AuditLogger, AgencyTask], tuple[Any, dict[str, Any]]],
@@ -398,6 +408,8 @@ _SPECIALIZED_ADAPTERS: dict[
     "chrome_devtools_mcp": _make_chrome_devtools_mcp,
     "discovery": _make_discovery,
     "intel_scout": _make_discovery,
+    "lead_machine": _make_lead_machine,
+    "qualification": _make_lead_machine,
 }
 
 
@@ -443,6 +455,7 @@ class AgencyEngine:
         self.scheduler = WorkflowScheduler(self)
         self.task_logger = TaskLogger(self.config.data_dir)
         self.scheduler.load_schedules()
+        self.scheduler.sync_from_workflow_definitions()
         self.long_term_memory = LongTermMemory(self.memory)
         self.marketplace = MarketplaceManager(
             self.registry,
@@ -484,6 +497,17 @@ class AgencyEngine:
 
         # Notifications (async fire-and-forget)
         asyncio.create_task(self.notifications.on_bus_message(message))
+
+        # Event-driven workflows (async fire-and-forget)
+        if message.topic.startswith(("task.", "registry.", "intel.", "webhook.")):
+            asyncio.create_task(
+                self.workflows.trigger_event(
+                    message.topic,
+                    message.payload,
+                    dispatch=self.dispatch,
+                    notify=self.notify,
+                )
+            )
 
     async def notify(
         self,
@@ -642,6 +666,100 @@ class AgencyEngine:
             reply_text,
             task_id=task.id,
         )
+        return thread, agency_message, task
+
+    async def agent_chat(
+        self,
+        thread_id: str | None,
+        content: str,
+        title: str | None = None,
+    ) -> tuple[ChatThread, ChatMessage, AgencyTask]:
+        """Agent-mode chat: let the LLM plan the intent, then dispatch it.
+
+        The user's message is first sent to the configured LLM with a system
+        prompt describing available modules. The LLM returns either an INTENT
+        line (which is dispatched as a task) or a REPLY line (which falls back
+        to dispatching the original message so the agency can still act on it).
+        """
+        if thread_id is None:
+            thread = self.chat.create_thread(title=title or "Agent conversation")
+        else:
+            existing = self.chat.get_thread(thread_id)
+            thread = existing or self.chat.create_thread(title=title or f"Thread {thread_id}")
+            if existing is None:
+                thread.id = thread_id
+                self.chat._threads[thread_id] = thread
+
+        self.chat.add_message(thread.id, MessageRole.USER, content)
+
+        modules = list(self.registry._modules.values())
+        module_lines = []
+        for module in modules[:50]:
+            caps = ", ".join(module.capabilities[:5]) or "general"
+            module_lines.append(f"- {module.id} ({module.category.value}): {caps}")
+        module_block = "\n".join(module_lines) or "- (no modules synced yet)"
+
+        system_prompt = (
+            "You are the OPA orchestrator. Given the user's message and the list of "
+            "available agency modules below, decide the best intent to dispatch.\n\n"
+            "Available modules:\n"
+            f"{module_block}\n\n"
+            "Respond with exactly one line in one of these forms:\n"
+            "INTENT: <concise intent to dispatch>\n"
+            "REPLY: <direct answer if no dispatch is needed>\n\n"
+            "If unsure, prefer INTENT with the user's original message."
+        )
+
+        try:
+            llm_response = await self.llm_chat(
+                messages=[
+                    LLMMessage(role="system", content=system_prompt),
+                    LLMMessage(role="user", content=content),
+                ],
+                temperature=0.3,
+                max_tokens=200,
+            )
+            raw = (llm_response.content or "").strip()
+        except Exception as exc:
+            raw = ""
+            await self.task_logger.info(
+                thread.id,
+                "Agent LLM call failed, falling back to direct dispatch",
+                actor="agent",
+                **{"error": str(exc)},
+            )
+
+        intent = content
+        reply_text: str | None = None
+        if raw.upper().startswith("INTENT:"):
+            intent = raw.split(":", 1)[1].strip() or content
+        elif raw.upper().startswith("REPLY:"):
+            reply_text = raw.split(":", 1)[1].strip()
+
+        task = await self.dispatch(intent, {"source": "agent_chat", "thread_id": thread.id})
+
+        await self.task_logger.info(
+            task.id,
+            "Agent chat dispatched intent",
+            actor="agent",
+            **{"thread_id": thread.id, "intent": intent, "original": content},
+        )
+
+        if reply_text:
+            agency_message = self.chat.add_message(
+                thread.id,
+                MessageRole.AGENCY,
+                reply_text,
+                task_id=task.id,
+            )
+        else:
+            module_name = task.module_id or task.category.value if task.category else "agency"
+            agency_message = self.chat.add_message(
+                thread.id,
+                MessageRole.AGENCY,
+                f"Agent dispatched task `{task.id}` to **{module_name}**.",
+                task_id=task.id,
+            )
         return thread, agency_message, task
 
     def list_memory_keys(self, limit: int = 100) -> list[dict[str, Any]]:

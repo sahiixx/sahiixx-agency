@@ -2,7 +2,9 @@
 
 **Unified AI orchestration for all 170+ repos.**
 
-One Person Agency is a Python-based framework that auto-discovers your GitHub repositories, registers them as agency modules, routes tasks to the right module, and exposes everything through a unified CLI + FastAPI + MCP server + React dashboard.
+> **👤 Profile**: [sahiix Portfolio](https://sahiix-portfolio.pages.dev/) | GitHub: [@sahiixx](https://github.com/sahiixx)
+
+One Person Agency is a Python-based framework that auto-discovers your GitHub repositories, registers them as agency modules, routes tasks to the right module, and exposes everything through a unified CLI, REST API, and MCP server.
 
 ## Features
 
@@ -123,7 +125,7 @@ sahiixx-agency/
 ## Environment Variables
 
 | Variable | Description |
-|---|---|
+| --- | --- |
 | `GITHUB_TOKEN` | GitHub personal access token (required for `opa sync`) |
 | `GITHUB_USER` | GitHub username (default: sahiixx) |
 | `OPA_CONFIG` | Path to agency.yaml (default: config/agency.yaml) |

@@ -265,7 +265,10 @@ ENTRY_JSON = json.dumps({
     "name": "Postiz",
     "tagline": "Schedule everything, everywhere.",
     "description": "A social scheduling pipeline with queue workers and channel adapters.",
-    "longDescription": ["Paragraph one.", "Paragraph two."],
+    "longDescription": [
+        "Paragraph one, long enough to force the multi-line array rendering branch.",
+        "Paragraph two, also long enough for the same rendering branch.",
+    ],
     "problem": "Posting to five networks by hand does not scale.",
     "architecture": "Next.js · workers · Redis queues",
     "statusNote": "Running locally.",

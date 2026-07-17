@@ -641,10 +641,17 @@ async def test_missing_marker_fails(workspace):
 
 
 @pytest.mark.asyncio
-async def test_dry_run_renders_without_touching_disk(workspace):
+async def test_dry_run_renders_without_touching_disk(workspace, monkeypatch):
     repo, settings = workspace
     notifications = FakeNotifications()
     adapter = make_adapter(settings, notifications=notifications)
+
+    async def fake_run(command, *, cwd, timeout):
+        if command.startswith("git status"):
+            return True, ""  # clean tree
+        return True, "ok"
+
+    monkeypatch.setattr(adapter, "_run", fake_run)
     data_ts = repo / "src" / "data.ts"
     before = data_ts.read_text(encoding="utf-8")
     result = await adapter.execute({"brief": "publish portfolio entry for postiz-app"})
@@ -982,7 +989,7 @@ class PortfolioPublisherAdapter(BaseAdapter):
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `.venv/Scripts/python -m pytest tests/adapters/test_portfolio_publisher.py -v`
-Expected: 8 PASS.
+Expected: 9 PASS.
 
 - [ ] **Step 5: Commit**
 

@@ -582,3 +582,36 @@ async def test_engine_uses_generic_adapter_for_unknown_module(config, fake_regis
     assert task.result["execution"]["status"] == "success"
     await engine.stop_worker()
 
+
+
+@pytest.mark.asyncio
+async def test_sync_repos_publishes_module_added_for_new_modules(engine):
+    events: list = []
+    engine.bus.subscribe("registry.module_added", events.append)
+
+    # Baseline sync (registry empty -> full): establishes baseline, no events.
+    await engine.sync_repos("sahiixx")
+    assert events == []
+
+    # Second sync introduces one new module -> exactly one event.
+    new_mod = RepoNode(
+        id="new-module",
+        name="new-module",
+        full_name="sahiixx/new-module",
+        url="https://github.com/sahiixx/new-module",
+        category=RepoCategory.AGENT_FRAMEWORK,
+    )
+
+    async def fake_discover_round_two(username):
+        engine.registry._modules[new_mod.id] = new_mod
+        return [*FAKE_MODULES, new_mod]
+
+    engine.registry.discover = fake_discover_round_two
+    discovered = await engine.sync_repos("sahiixx")
+
+    assert len(discovered) == 3
+    assert len(events) == 1
+    assert events[0].topic == "registry.module_added"
+    assert events[0].sender == "engine"
+    assert events[0].payload["id"] == "new-module"
+    assert events[0].payload["name"] == "new-module"

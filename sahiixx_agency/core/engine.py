@@ -933,8 +933,20 @@ class AgencyEngine:
     async def sync_repos(self, username: str | None = None) -> list[RepoNode]:
         """Sync all GitHub repos into the registry."""
         user = username or self.config.github_username
+        before = {m.id for m in self.registry.modules}
         discovered = await self.registry.discover(user)
         self.memory.log_event("registry.sync", {"username": user, "count": len(discovered)})
+        if before:
+            for module in discovered:
+                if module.id not in before:
+                    await self.bus.publish(
+                        BusMessage(
+                            id=f"msg_{uuid.uuid4().hex[:8]}",
+                            topic="registry.module_added",
+                            sender="engine",
+                            payload=module.model_dump(mode="json"),
+                        )
+                    )
         return discovered
 
     def _load_tasks(self) -> None:

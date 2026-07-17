@@ -73,7 +73,8 @@ portfolio_publisher adapter                    [adapters/portfolio_publisher_ada
 ### 5.2 Workflow definition (`data/workflows/portfolio-publisher.json`)
 - `trigger: "event"`, `event_topic: "registry.module_added"`, `enabled: true`.
 - Single `dispatch` step whose `intent_template` renders
-  `publish portfolio entry for {{ name }}` (context = event payload). A new routing
+  `publish portfolio entry for {name}` (context = event payload; single-brace
+  substitution per `workflows.py:354`). A new routing
   rule in `agency.yaml` pins that intent to `portfolio_publisher`.
 - No workflow-level `notify` step: dispatch completes on enqueue, so the step cannot
   report the real outcome. The adapter owns outcome notification (5.3).
@@ -85,8 +86,9 @@ repo AGENTS.md. Config block `portfolio_publisher` in `agency.yaml`:
 `repo_path` (`C:\Users\sahii\Projects\portfolio`), `ignore` (list of module ids).
 
 Pipeline, in order, each step aborting with notify-on-failure:
-1. **Gates** — skip (and log why) when: `enabled` false; module in `ignore`; fork,
-   archived, or missing description; slug already present in `src/data.ts` (dedup).
+1. **Gates** — skip (and log why) when: `enabled` false; module in `ignore`; fork or
+   missing description (`RepoNode` carries `is_fork`; there is no `archived` flag);
+   slug already present in `src/data.ts` (dedup).
 2. **Pre-flight** — `git -C repo status --porcelain src/data.ts` must be clean; a dirty
    data file means the user is mid-edit → abort + notify, never stomp.
 3. **Context** — module registry payload + README text (local `data/repos/<name>`

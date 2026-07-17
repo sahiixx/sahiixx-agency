@@ -615,3 +615,23 @@ async def test_sync_repos_publishes_module_added_for_new_modules(engine):
     assert events[0].sender == "engine"
     assert events[0].payload["id"] == "new-module"
     assert events[0].payload["name"] == "new-module"
+
+
+def test_agency_config_portfolio_publisher_defaults():
+    assert AgencyConfig().portfolio_publisher == {}
+
+
+def test_agency_config_portfolio_publisher_accepts_settings():
+    config = AgencyConfig(portfolio_publisher={"enabled": True, "dry_run": False})
+    assert config.portfolio_publisher["enabled"] is True
+
+
+def test_agency_yaml_portfolio_publisher_wiring():
+    import yaml
+
+    with open("config/agency.yaml", encoding="utf-8") as fh:
+        data = yaml.safe_load(fh)
+    assert data["portfolio_publisher"]["enabled"] is False
+    assert data["portfolio_publisher"]["dry_run"] is True
+    assert data["ecosystem"]["portfolio_publisher"]["category"] == "content_media"
+    assert data["routing_rules"][0]["target"] == "portfolio_publisher"

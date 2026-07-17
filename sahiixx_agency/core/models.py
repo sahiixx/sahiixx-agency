@@ -342,6 +342,11 @@ class AgencyConfig(BaseModel):
         default_factory=dict,
         description="Notification channel configs: telegram, email, webhook",
     )
+    # Portfolio auto-publish settings loaded from agency.yaml
+    portfolio_publisher: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Portfolio publisher settings: enabled, dry_run, repo_path, ignore",
+    )
     # Workflow storage directory
     workflows_dir: str = Field(default="./data/workflows")
     # Metrics retention window in hours

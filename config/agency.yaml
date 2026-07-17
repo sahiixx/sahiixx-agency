@@ -126,6 +126,15 @@ ecosystem:
     bus_channel: "discovery.*"
     protocol: internal
     priority: 1
+  web_intel:
+    repo: sahiixx-agency
+    url: https://github.com/sahiixx/sahiixx-agency
+    role: "Web page / GitHub profile fetch and structured extraction"
+    capabilities: [web-fetch, profile-analysis, project-extraction]
+    category: agent_framework
+    bus_channel: "intel.*"
+    protocol: internal
+    priority: 1
   # ── Lead Machine (E2E Dubai RE pipeline) ──
   lead_machine:
     repo: sahiixx-agency
@@ -646,7 +655,7 @@ ecosystem:
 # ─── Routing Rules ─────────────────────────────────────────────
 routing_rules:
   - pattern: 'github\.com/sahiixx/sahiixx|sahiixx profile|profile README|flagship projects.*registry|missing from the agency registry'
-    target: discovery
+    target: web_intel
   - pattern: "trending repo|trending github|trending project|discover.*(repo|project|github)|find.*trending|scout.*(repo|github)|hidden gem|new github project|intel scout|what.*trending.*(repo|github)"
     target: discovery
   - pattern: "qualify.*(lead|enquiry|prospect)|score.*lead|capture.*lead|lead.*intake|new lead|route.*lead|match.*(lead|property)|schedule.*(viewing|lead|call)"

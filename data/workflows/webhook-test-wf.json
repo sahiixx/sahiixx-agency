@@ -1,0 +1,29 @@
+{
+  "id": "webhook-test-wf",
+  "name": "Webhook Test",
+  "description": "",
+  "trigger": "webhook",
+  "schedule": null,
+  "event_topic": null,
+  "steps": [
+    {
+      "id": "s1",
+      "name": "Process",
+      "action": "notify",
+      "target": null,
+      "intent_template": null,
+      "payload": {
+        "channel": "sse",
+        "title": "Webhook",
+        "body": "Received"
+      },
+      "requires_approval": false,
+      "next_on_success": null,
+      "next_on_failure": null,
+      "condition": null
+    }
+  ],
+  "enabled": true,
+  "created_at": "2026-07-17T18:51:50.502120Z",
+  "updated_at": "2026-07-17T18:51:50.502120Z"
+}

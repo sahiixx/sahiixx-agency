@@ -83,3 +83,38 @@ async def test_scheduler_tick_triggers_workflow(engine: AgencyEngine) -> None:
 
     assert schedule.last_run_at is not None
     assert schedule.next_run_at > schedule.last_run_at
+
+
+def test_scheduler_sync_from_workflow_definitions(engine: AgencyEngine) -> None:
+    from sahiixx_agency.core.models import WorkflowDefinition, WorkflowStep
+
+    definition = WorkflowDefinition(
+        id="scheduled-wf",
+        name="Scheduled Workflow",
+        trigger="schedule",
+        schedule="0 6 * * *",
+        steps=[WorkflowStep(id="step_1", name="Step 1", action="noop")],
+    )
+    engine.workflows.create_definition(definition)
+
+    scheduler = WorkflowScheduler(engine)
+    scheduler.sync_from_workflow_definitions()
+
+    schedules = scheduler.list_schedules()
+    found = next((s for s in schedules if s.workflow_id == "scheduled-wf"), None)
+    assert found is not None
+    assert found.next_run_at is not None
+
+
+def test_scheduler_load_parses_iso_datetimes(engine: AgencyEngine) -> None:
+    scheduler = WorkflowScheduler(engine)
+    schedule = ScheduledWorkflow(workflow_id="wf_iso", interval_seconds=60)
+    scheduler.save_schedule(schedule)
+
+    # Simulate a fresh engine instance reading the same memory
+    scheduler2 = WorkflowScheduler(engine)
+    scheduler2.load_schedules()
+    loaded = scheduler2.list_schedules()
+    assert len(loaded) == 1
+    assert isinstance(loaded[0].next_run_at, datetime)
+    assert isinstance(loaded[0].created_at, datetime)

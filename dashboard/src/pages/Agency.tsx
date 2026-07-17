@@ -19,6 +19,8 @@ import {
   VolumeX,
   Command,
   Monitor,
+  Bot,
+  Bell,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ChatThread } from '@/components/chat/ChatThread'
@@ -35,7 +37,7 @@ import { LiveMetricsHUD } from '@/components/LiveMetricsHUD'
 import { useTaskStream } from '@/hooks/useTaskStream'
 import { useVoiceSynthesis } from '@/hooks/useVoiceSynthesis'
 
-type SidebarItem = 'chat' | 'tasks' | 'discovery' | 'approvals' | 'memory' | 'device' | 'graph'
+type SidebarItem = 'chat' | 'tasks' | 'discovery' | 'approvals' | 'memory' | 'device' | 'graph' | 'notifications'
 
 interface ChatMessage {
   id: string
@@ -53,6 +55,17 @@ interface Task {
   created_at: string
 }
 
+interface NotificationItem {
+  id: string
+  channel: string
+  title: string
+  body: string
+  status: string
+  created_at: string
+  sent_at?: string
+  error?: string
+}
+
 export default function Agency() {
   const [active, setActive] = useState<SidebarItem>('chat')
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -65,6 +78,8 @@ export default function Agency() {
   const [liveTaskId, setLiveTaskId] = useState<string | null>(null)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [ttsEnabled, setTtsEnabled] = useState(true)
+  const [agentMode, setAgentMode] = useState(true)
+  const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const navigate = useNavigate()
 
   const { task: liveTask, connected: liveConnected, finished } = useTaskStream(liveTaskId)
@@ -123,10 +138,10 @@ export default function Agency() {
         setMobileSidebarOpen(false)
         return
       }
-      // 1-7 for sidebar navigation
-      if (e.key >= '1' && e.key <= '7' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      // 1-8 for sidebar navigation
+      if (e.key >= '1' && e.key <= '8' && !e.ctrlKey && !e.metaKey && !e.altKey) {
         const idx = parseInt(e.key) - 1
-        const keys: SidebarItem[] = ['chat', 'tasks', 'discovery', 'approvals', 'memory', 'device', 'graph']
+        const keys: SidebarItem[] = ['chat', 'tasks', 'discovery', 'approvals', 'memory', 'notifications', 'device', 'graph']
         if (keys[idx]) {
           e.preventDefault()
           handleNav(keys[idx])
@@ -143,6 +158,7 @@ export default function Agency() {
     { key: 'discovery', label: 'Discovery', icon: <Search className="h-5 w-5" /> },
     { key: 'approvals', label: 'Approvals', icon: <ShieldCheck className="h-5 w-5" /> },
     { key: 'memory', label: 'Memory', icon: <Database className="h-5 w-5" /> },
+    { key: 'notifications', label: 'Notifications', icon: <Bell className="h-5 w-5" /> },
     { key: 'device', label: 'Device', icon: <Monitor className="h-5 w-5" /> },
     { key: 'graph', label: 'Graph', icon: <GitBranch className="h-5 w-5" /> },
   ]
@@ -156,7 +172,7 @@ export default function Agency() {
         const res = await fetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: text.trim(), thread_id: threadId }),
+          body: JSON.stringify({ message: text.trim(), thread_id: threadId, agent: agentMode }),
         })
         if (!res.ok) throw new Error(`Chat error: ${res.status}`)
         const data = await res.json()
@@ -173,7 +189,7 @@ export default function Agency() {
         setChatLoading(false)
       }
     },
-    [threadId]
+    [threadId, agentMode]
   )
 
   useEffect(() => {
@@ -200,6 +216,28 @@ export default function Agency() {
     }
   }, [threadId])
 
+  useEffect(() => {
+    if (active !== 'notifications') return
+    let cancelled = false
+    const fetchNotifications = async () => {
+      try {
+        const res = await fetch('/api/notifications?limit=50')
+        if (!res.ok) return
+        const data = await res.json()
+        if (cancelled) return
+        setNotifications(data)
+      } catch {
+        // ignore
+      }
+    }
+    fetchNotifications()
+    const interval = setInterval(fetchNotifications, 5000)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [active])
+
   const rightPanelTitle =
     selectedTask
       ? 'Task Details'
@@ -211,6 +249,8 @@ export default function Agency() {
       ? 'Trending Repos'
       : active === 'memory'
       ? 'Memory'
+      : active === 'notifications'
+      ? 'Notifications'
       : active === 'device'
       ? 'Device Control'
       : 'Context'
@@ -235,8 +275,9 @@ export default function Agency() {
     { id: 'discovery', label: 'Go to Discovery', shortcut: '3', action: () => handleNav('discovery') },
     { id: 'approvals', label: 'Go to Approvals', shortcut: '4', action: () => handleNav('approvals') },
     { id: 'memory', label: 'Go to Memory', shortcut: '5', action: () => handleNav('memory') },
-    { id: 'device', label: 'Go to Device', shortcut: '6', action: () => handleNav('device') },
-    { id: 'graph', label: 'Go to Graph', shortcut: '7', action: () => handleNav('graph') },
+    { id: 'notifications', label: 'Go to Notifications', shortcut: '6', action: () => handleNav('notifications') },
+    { id: 'device', label: 'Go to Device', shortcut: '7', action: () => handleNav('device') },
+    { id: 'graph', label: 'Go to Graph', shortcut: '8', action: () => handleNav('graph') },
     { id: 'toggle-tts', label: ttsEnabled ? 'Disable Voice (TTS)' : 'Enable Voice (TTS)', shortcut: 'T', action: () => setTtsEnabled((v) => !v) },
     { id: 'stop-speech', label: 'Stop Speaking', shortcut: 'S', action: () => stop() },
     { id: 'clear-chat', label: 'Clear Chat', shortcut: 'C', action: () => { setMessages([]); setThreadId(null); setLiveTaskId(null); } },
@@ -421,7 +462,25 @@ export default function Agency() {
                       </div>
                     )}
                   </div>
-                  <div className="border-t border-white/6 p-4 md:p-6">
+                  <div className="border-t border-white/6 p-4 md:p-6 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <button
+                        onClick={() => setAgentMode((v) => !v)}
+                        className={cn(
+                          'inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
+                          agentMode
+                            ? 'bg-accent-cyan/10 text-accent-cyan border border-accent-cyan/30'
+                            : 'bg-white/5 text-[var(--text-muted)] border border-white/6 hover:bg-white/10'
+                        )}
+                        title={agentMode ? 'Agent planning enabled' : 'Agent planning disabled'}
+                      >
+                        <Bot className="h-3.5 w-3.5" />
+                        {agentMode ? 'Agent mode on' : 'Agent mode off'}
+                      </button>
+                      <span className="text-[10px] text-[var(--text-muted)]">
+                        {agentMode ? 'LLM plans the intent before dispatch' : 'Dispatch intent directly'}
+                      </span>
+                    </div>
                     <ChatInput onSend={handleSend} disabled={chatLoading} />
                   </div>
                 </>
@@ -448,6 +507,35 @@ export default function Agency() {
               {active === 'memory' && (
                 <div className="flex-1 overflow-y-auto p-4 md:p-6">
                   <MemoryPanel />
+                </div>
+              )}
+
+              {active === 'notifications' && (
+                <div className="flex-1 overflow-y-auto p-4 md:p-6">
+                  <div className="space-y-3">
+                    {notifications.length === 0 && (
+                      <p className="text-sm text-[var(--text-muted)]">No notifications yet.</p>
+                    )}
+                    {notifications.map((n) => (
+                      <div
+                        key={n.id}
+                        className="rounded-lg border border-white/6 bg-[var(--bg-elevated)] p-3 space-y-1"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-[var(--text-primary)]">{n.title}</span>
+                          <span className="text-[10px] uppercase font-mono text-[var(--text-muted)]">{n.channel}</span>
+                        </div>
+                        <p className="text-xs text-[var(--text-secondary)]">{n.body}</p>
+                        <div className="flex items-center gap-2 text-[10px] text-[var(--text-muted)]">
+                          <span className={`px-1.5 py-0.5 rounded ${n.status === 'sent' ? 'bg-accent-green/10 text-accent-green' : 'bg-accent-amber/10 text-accent-amber'}`}>
+                            {n.status}
+                          </span>
+                          <span>{new Date(n.created_at).toLocaleString()}</span>
+                        </div>
+                        {n.error && <div className="text-[10px] text-red-400">{n.error}</div>}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -485,6 +573,10 @@ export default function Agency() {
                   <TrendingPanel />
                 ) : active === 'memory' ? (
                   <MemoryPanel />
+                ) : active === 'notifications' ? (
+                  <div className="text-sm text-[var(--text-muted)]">
+                    Real-time notifications also appear as toast alerts.
+                  </div>
                 ) : active === 'device' ? (
                   <DeviceSidebarCompact
                     cpu={null}

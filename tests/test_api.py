@@ -289,6 +289,25 @@ def test_chat_thread_not_found(client):
     assert response.status_code == 404
 
 
+def test_chat_agent_mode_dispatches_planned_intent(client, monkeypatch):
+    async def fake_llm_chat(*args, **kwargs):
+        from sahiixx_agency.core.models import LLMResponse
+
+        return LLMResponse(provider="test", model="test", content="INTENT: run voice assistant")
+
+    monkeypatch.setattr("sahiixx_agency.api.main.get_engine", lambda: client.app.dependency_overrides.get(get_engine, lambda: None)())
+    # The TestClient holds the overridden engine via dependency_overrides.
+    engine = client.app.dependency_overrides[get_engine]()
+    monkeypatch.setattr(engine, "llm_chat", fake_llm_chat)
+
+    response = client.post("/chat", json={"message": "I want a voice assistant", "agent": True})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["thread_id"].startswith("thread_")
+    assert data["task_id"].startswith("task_")
+    assert any("Agent dispatched task" in m["content"] for m in data["messages"] if m["role"] == "agency")
+
+
 def test_list_tasks_includes_module_alias(client):
     client.post("/tasks", params={"intent": "run voice assistant"})
     response = client.get("/tasks")
@@ -424,6 +443,60 @@ def test_workflow_crud(client):
 
     delete = client.delete("/workflows/test-wf")
     assert delete.status_code == 200
+
+
+def test_workflow_from_natural_language(client, monkeypatch):
+    async def fake_llm_chat(*args, **kwargs):
+        from sahiixx_agency.core.models import LLMResponse, LLMUsage
+
+        return LLMResponse(
+            provider="test",
+            model="test",
+            content='{"id":"nl-wf","name":"NL Workflow","trigger":"manual","steps":[{"id":"step_1","name":"Notify","action":"notify","payload":{"channel":"sse","title":"Hi","body":"Hello"}}],"enabled":true}',
+            usage=LLMUsage(input_tokens=100, output_tokens=50, total_tokens=150),
+        )
+
+    engine = client.app.dependency_overrides[get_engine]()
+    monkeypatch.setattr(engine, "llm_chat", fake_llm_chat)
+
+    response = client.post("/workflows/from-natural-language", json={"description": "Create a workflow that sends a hello notification"})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == "nl-wf"
+    assert data["name"] == "NL Workflow"
+    assert any(step["id"] == "step_1" for step in data["steps"])
+
+
+def test_workflow_webhook_trigger_endpoint(client):
+    workflow = {
+        "id": "webhook-test-wf",
+        "name": "Webhook Test",
+        "trigger": "webhook",
+        "steps": [
+            {"id": "s1", "name": "Process", "action": "notify", "payload": {"channel": "sse", "title": "Webhook", "body": "Received"}},
+        ],
+    }
+    assert client.post("/workflows", json=workflow).status_code == 200
+
+    response = client.post("/workflows/webhook-test-wf/trigger", json={"action": "push"})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["workflow_id"] == "webhook-test-wf"
+    assert data["status"] == "completed"
+
+
+def test_workflow_webhook_trigger_rejects_non_webhook_workflow(client):
+    workflow = {
+        "id": "manual-test-wf",
+        "name": "Manual Test",
+        "trigger": "manual",
+        "steps": [{"id": "s1", "name": "Step", "action": "noop"}],
+    }
+    assert client.post("/workflows", json=workflow).status_code == 200
+
+    response = client.post("/workflows/manual-test-wf/trigger", json={})
+    assert response.status_code == 400
+    assert "not configured for webhook" in response.json()["detail"]
 
 
 def test_notification_send(client):

@@ -46,3 +46,14 @@ def test_routing_rule_order_puts_specific_security_before_t3mp3st(engine):
     targets_in_order = [rule.target for rule in engine.config.routing_rules]
     assert targets_in_order.index("trufflehog") < targets_in_order.index("T3MP3ST")
     assert targets_in_order.index("shannon") < targets_in_order.index("T3MP3ST")
+
+
+def test_sahiixx_profile_intent_routes_to_web_intel(engine):
+    """Profile/README analysis intents must not route to hiring-agent."""
+    import asyncio
+
+    task = asyncio.run(engine.router.route("analyze https://github.com/sahiixx/sahiixx profile README"))
+    assert task.module_id == "web_intel"
+
+    task2 = asyncio.run(engine.router.route("identify flagship projects missing from the agency registry"))
+    assert task2.module_id == "web_intel"

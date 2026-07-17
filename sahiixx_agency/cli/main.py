@@ -241,30 +241,16 @@ async def _run_dispatch(
             )
             return
 
-        terminal_statuses = {TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED}
-        max_polls = int(DISPATCH_MAX_WAIT_S / DISPATCH_POLL_INTERVAL_S)
-        with console.status(f"[bold yellow]Executing: {intent}"):
-            for _ in range(max_polls):
-                current = engine.get_task(task.id)
-                if current is None:
-                    break
-                if current.status in terminal_statuses:
-                    break
-                await asyncio.sleep(DISPATCH_POLL_INTERVAL_S)
-
-        final = engine.get_task(task.id)
-        if final is None:
-            console.print(f"[red]Task '{task.id}' disappeared during execution.[/red]")
-            raise typer.Exit(1)
-        border = "green" if final.status == TaskStatus.COMPLETED else "red"
-        category_value = final.category.value if final.category else "N/A"
-        if final.module_id:
+        result = await _wait_for_task(engine, task.id)
+        border = "green" if result["status"] == TaskStatus.COMPLETED else "red"
+        category_value = result["category"]
+        if result.get("module_id"):
             console.print(
                 Panel(
-                    f"Routed to [bold cyan]{final.module_id}[/bold cyan] ([italic]{category_value}[/italic])\n"
-                    f"Status: [bold]{final.status.value}[/bold]\n"
-                    f"Result: {json.dumps(final.result, indent=2, default=str)}",
-                    title=f"Task {final.id}",
+                    f"Routed to [bold cyan]{result['module_id']}[/bold cyan] ([italic]{category_value}[/italic])\n"
+                    f"Status: [bold]{result['status'].value}[/bold]\n"
+                    f"Result: {json.dumps(result['result'], indent=2, default=str)}",
+                    title=f"Task {task.id}",
                     border_style=border,
                 )
             )
@@ -272,14 +258,39 @@ async def _run_dispatch(
             console.print(
                 Panel(
                     f"No module matched. Category: {category_value}\n"
-                    f"Status: [bold]{final.status.value}[/bold]\n"
-                    f"Result: {json.dumps(final.result, indent=2, default=str)}",
-                    title=f"Task {final.id}",
+                    f"Status: [bold]{result['status'].value}[/bold]\n"
+                    f"Result: {json.dumps(result['result'], indent=2, default=str)}",
+                    title=f"Task {task.id}",
                     border_style="yellow",
                 )
             )
     finally:
         await engine.stop_worker()
+
+
+async def _wait_for_task(engine: AgencyEngine, task_id: str) -> dict[str, Any]:
+    """Poll a task until it reaches a terminal status and return a summary dict."""
+    terminal_statuses = {TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED}
+    max_polls = int(DISPATCH_MAX_WAIT_S / DISPATCH_POLL_INTERVAL_S)
+    with console.status(f"[bold yellow]Waiting for task {task_id}"):
+        for _ in range(max_polls):
+            current = engine.get_task(task_id)
+            if current is None:
+                break
+            if current.status in terminal_statuses:
+                break
+            await asyncio.sleep(DISPATCH_POLL_INTERVAL_S)
+
+    final = engine.get_task(task_id)
+    if final is None:
+        return {"status": TaskStatus.FAILED, "result": None, "error": "Task disappeared", "module_id": None, "category": "N/A"}
+    return {
+        "status": final.status,
+        "result": final.result,
+        "error": final.error,
+        "module_id": final.module_id,
+        "category": final.category.value if final.category else "N/A",
+    }
 
 
 @app.command()
@@ -317,6 +328,42 @@ def do(
     intent = " ".join(words)
     engine = AgencyEngine(_load_config())
     asyncio.run(_run_dispatch(engine, intent, data, no_wait=no_wait))
+
+
+@app.command()
+def agent(
+    words: list[str] = WORDS_ARGUMENT,
+    no_wait: bool = typer.Option(False, "--no-wait", help="Return immediately with the pending task id"),
+) -> None:
+    """Send a natural-language message to the agent loop.
+
+    Example: ``opa agent find me trending AI repos and summarize them``.
+    """
+    content = " ".join(words)
+    engine = AgencyEngine(_load_config())
+
+    async def _run() -> None:
+        await engine.start_worker()
+        try:
+            _thread, agency_message, task = await engine.agent_chat(
+                thread_id=None,
+                content=content,
+                title="CLI agent chat",
+            )
+            console.print(f"[cyan]Agent:[/cyan] {agency_message.content}")
+            console.print(f"[dim]Task:[/dim] {task.id} ({task.status.value})")
+            if not no_wait:
+                result = await _wait_for_task(engine, task.id)
+                console.print(f"[bold]Status:[/bold] {result['status'].value}")
+                if result.get("result"):
+                    preview = json.dumps(result["result"], indent=2, default=str)[:OUTPUT_PREVIEW_LIMIT]
+                    console.print(f"[bold]Result:[/bold]\n{preview}")
+                if result.get("error"):
+                    console.print(f"[red]Error:[/red] {result['error']}")
+        finally:
+            await engine.stop_worker()
+
+    asyncio.run(_run())
 
 
 @task_app.command("status")

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Play, Plus, Trash2, Workflow } from 'lucide-react'
+import { Play, Plus, Trash2, Workflow, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
@@ -10,6 +10,8 @@ interface WorkflowDefinition {
   name: string
   description?: string
   trigger: string
+  event_topic?: string
+  schedule?: string
   steps: Array<{
     id: string
     name: string
@@ -37,6 +39,8 @@ export default function WorkflowsPage() {
   const [instances, setInstances] = useState<Record<string, WorkflowInstance[]>>({})
   const [loading, setLoading] = useState(false)
   const [newJson, setNewJson] = useState('')
+  const [nlDescription, setNlDescription] = useState('')
+  const [nlLoading, setNlLoading] = useState(false)
 
   const fetchWorkflows = async () => {
     try {
@@ -100,6 +104,29 @@ export default function WorkflowsPage() {
     }
   }
 
+  const createWorkflowFromNL = async () => {
+    if (!nlDescription.trim()) return
+    setNlLoading(true)
+    try {
+      const res = await fetch('/api/workflows/from-natural-language', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description: nlDescription.trim() }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.detail || 'Failed to generate workflow')
+      }
+      toast.success('Workflow generated from description')
+      setNlDescription('')
+      fetchWorkflows()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to generate workflow')
+    } finally {
+      setNlLoading(false)
+    }
+  }
+
   const deleteWorkflow = async (workflowId: string) => {
     try {
       const res = await fetch(`/api/workflows/${workflowId}`, { method: 'DELETE' })
@@ -124,7 +151,34 @@ export default function WorkflowsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Create Workflow</CardTitle>
+            <CardTitle className="text-base">Create Workflow from Description</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Textarea
+              placeholder="Every morning, find trending AI repos, summarize the top 3, and post a summary to Telegram."
+              value={nlDescription}
+              onChange={(e) => setNlDescription(e.target.value)}
+              rows={3}
+            />
+            <Button
+              onClick={createWorkflowFromNL}
+              disabled={!nlDescription.trim() || nlLoading}
+              className="gap-2"
+            >
+              {nlLoading ? (
+                <>Generating...</>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4" /> Generate with AI
+                </>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Create Workflow (JSON)</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <Textarea
@@ -173,13 +227,24 @@ export default function WorkflowsPage() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
-                <div className="flex items-center gap-3 text-sm text-text-secondary">
+                <div className="flex flex-wrap items-center gap-3 text-sm text-text-secondary">
                   <span className="font-mono text-xs bg-muted px-2 py-1 rounded">{wf.id}</span>
                   <span>Trigger: {wf.trigger}</span>
+                  {wf.trigger === 'event' && wf.event_topic && (
+                    <span className="font-mono text-xs">Topic: {wf.event_topic}</span>
+                  )}
+                  {wf.trigger === 'schedule' && wf.schedule && (
+                    <span className="font-mono text-xs">Cron: {wf.schedule}</span>
+                  )}
                   <span>Steps: {wf.steps.length}</span>
                   <span>{wf.enabled ? 'Enabled' : 'Disabled'}</span>
                 </div>
                 {wf.description && <p className="text-sm text-text-secondary">{wf.description}</p>}
+                {wf.trigger === 'webhook' && (
+                  <div className="text-xs bg-muted rounded p-2 font-mono break-all">
+                    POST /api/workflows/{wf.id}/trigger
+                  </div>
+                )}
                 <div className="space-y-1">
                   {wf.steps.map((step) => (
                     <div key={step.id} className="text-sm border-l-2 border-accent-cyan pl-3 py-1">

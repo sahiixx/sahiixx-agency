@@ -207,6 +207,49 @@ class WorkflowEngine:
         self._emit("workflow.instance.updated", {"instance": instance.model_dump(mode="json")})
         return instance
 
+    async def trigger_event(
+        self,
+        topic: str,
+        payload: dict[str, Any],
+        *,
+        dispatch: Any | None = None,
+        notify: Any | None = None,
+    ) -> list[WorkflowInstance]:
+        """Run all enabled workflows whose event_topic matches the bus topic.
+
+        Returns the list of started instances so callers can await them.
+        """
+        instances: list[WorkflowInstance] = []
+        for definition in self._definitions.values():
+            if not definition.enabled:
+                continue
+            if definition.trigger != "event":
+                continue
+            if definition.event_topic and definition.event_topic != topic:
+                continue
+            instance = self.create_instance(definition.id, {**payload, "trigger_topic": topic})
+            if instance is None:
+                continue
+            instances.append(await self.run_instance(instance.id, dispatch=dispatch, notify=notify))
+        return instances
+
+    async def trigger_webhook(
+        self,
+        workflow_id: str,
+        payload: dict[str, Any],
+        *,
+        dispatch: Any | None = None,
+        notify: Any | None = None,
+    ) -> WorkflowInstance | None:
+        """Create and run a workflow instance from an incoming webhook payload."""
+        definition = self._definitions.get(workflow_id)
+        if definition is None or not definition.enabled:
+            return None
+        instance = self.create_instance(workflow_id, {"webhook": payload})
+        if instance is None:
+            return None
+        return await self.run_instance(instance.id, dispatch=dispatch, notify=notify)
+
     async def _run_step(
         self,
         instance: WorkflowInstance,

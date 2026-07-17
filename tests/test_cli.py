@@ -70,6 +70,19 @@ def test_do_command_natural_language_dispatch(patched_engine):
     assert "pending" in result.stdout
 
 
+def test_agent_command_dispatches_task(patched_engine, monkeypatch):
+    async def fake_llm_chat(*args, **kwargs):
+        from sahiixx_agency.core.models import LLMResponse
+
+        return LLMResponse(provider="test", model="test", content="INTENT: run voice assistant")
+
+    monkeypatch.setattr(patched_engine, "llm_chat", fake_llm_chat)
+    result = runner.invoke(app, ["agent", "run", "voice", "assistant", "--no-wait"])
+    assert result.exit_code == 0
+    assert "task_" in result.stdout
+    assert "Agent:" in result.stdout
+
+
 def test_do_command_invalid_json_payload(patched_engine):
     result = runner.invoke(app, ["do", "run", "voice", "assistant", "--payload", "not-json"])
     assert result.exit_code == 1

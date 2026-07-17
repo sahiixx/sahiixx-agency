@@ -458,23 +458,59 @@ class LLMManager:
         max_tokens: int | None = None,
         task: AgencyTask | None = None,
     ) -> LLMResponse:
-        """Send a chat request to the configured provider and track cost."""
-        provider_name = provider or self.config.default_provider.value
-        provider_obj = create_provider(provider_name, self.config)
-        chosen_model = model or _resolve_default_model(provider_name, self.config.providers.get(provider_name))
+        """Send a chat request to the configured provider and track cost.
 
-        start = time.perf_counter()
-        response = await provider_obj.chat(
-            model=chosen_model,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
+        If the requested provider fails, falls back through other configured
+        providers. If no provider is usable, returns a graceful fallback
+        response so callers can degrade instead of crashing.
+        """
+        requested = provider or self.config.default_provider.value
+        candidates = [requested]
+        for name in self.config.providers:
+            if name != requested and name not in candidates:
+                candidates.append(name)
+
+        last_error: Exception | None = None
+        for provider_name in candidates:
+            try:
+                provider_obj = create_provider(provider_name, self.config)
+            except Exception as exc:
+                last_error = exc
+                continue
+            chosen_model = model or _resolve_default_model(provider_name, self.config.providers.get(provider_name))
+
+            start = time.perf_counter()
+            try:
+                response = await provider_obj.chat(
+                    model=chosen_model,
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                )
+            except Exception as exc:
+                last_error = exc
+                continue
+
+            response.latency_ms = round((time.perf_counter() - start) * 1000, 2)
+            response.model = chosen_model
+            response.cost_usd = compute_cost(chosen_model, response.usage, self._pricing_overrides())
+            self.tracker.record(response, task=task)
+            return response
+
+        # No provider succeeded. Return a graceful fallback that surfaces the
+        # issue instead of raising, preserving caller stability.
+        fallback_content = (
+            f"LLM unavailable ({last_error or 'no configured provider'}). "
+            "Please configure an LLM provider or check your API keys."
         )
-        response.latency_ms = round((time.perf_counter() - start) * 1000, 2)
-        response.model = chosen_model
-        response.cost_usd = compute_cost(chosen_model, response.usage, self._pricing_overrides())
-        self.tracker.record(response, task=task)
-        return response
+        return LLMResponse(
+            provider="none",
+            model="none",
+            content=fallback_content,
+            usage=LLMUsage(),
+            cost_usd=0.0,
+            latency_ms=0.0,
+        )
 
     def cost_summary(
         self,

@@ -503,6 +503,7 @@ async def create_workflow(
 ) -> dict[str, Any]:
     """Create or update a workflow definition."""
     created = engine.workflows.create_definition(definition)
+    engine.scheduler.sync_from_workflow_definitions()
     return created.model_dump(mode="json")
 
 
@@ -583,6 +584,130 @@ async def resume_workflow_instance(
     if instance is None:
         raise HTTPException(status_code=404, detail="Workflow instance not found or not paused")
     return instance.model_dump(mode="json")
+
+
+@app.post("/workflows/{workflow_id}/trigger")
+async def trigger_workflow_webhook(
+    workflow_id: str,
+    request: Request,
+    engine: Annotated[AgencyEngine, Depends(get_engine)],
+) -> dict[str, Any]:
+    """Trigger a webhook-enabled workflow with an arbitrary JSON payload."""
+    definition = engine.workflows.get_definition(workflow_id)
+    if definition is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    if definition.trigger != "webhook":
+        raise HTTPException(status_code=400, detail="Workflow is not configured for webhook trigger")
+
+    try:
+        payload = await request.json()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid JSON payload: {exc}") from exc
+
+    instance = await engine.workflows.trigger_webhook(
+        workflow_id,
+        payload,
+        dispatch=engine.dispatch,
+        notify=engine.notify,
+    )
+    if instance is None:
+        raise HTTPException(status_code=400, detail="Workflow is disabled or could not be started")
+    return instance.model_dump(mode="json")
+
+
+class WorkflowFromNLRequest(BaseModel):
+    """Request body for creating a workflow from natural language."""
+
+    description: str = Field(..., min_length=3)
+    id: str | None = Field(default=None, description="Optional workflow id; one is generated if omitted")
+
+
+@app.post("/workflows/from-natural-language")
+async def create_workflow_from_natural_language(
+    request: WorkflowFromNLRequest,
+    engine: Annotated[AgencyEngine, Depends(get_engine)],
+) -> dict[str, Any]:
+    """Generate a workflow definition from a natural-language description.
+
+    The description is sent to the configured LLM with a JSON schema prompt.
+    The returned JSON is validated as a ``WorkflowDefinition`` and stored.
+    """
+    if not request.description.strip():
+        raise HTTPException(status_code=400, detail="Description cannot be empty")
+
+    system_prompt = (
+        "You are a workflow designer for the One Person Agency. "
+        "Convert the user's description into a valid JSON workflow definition.\n\n"
+        "Available step actions: dispatch, wait, approve, notify, webhook, condition, noop.\n"
+        "Available triggers: manual, schedule, webhook, event.\n\n"
+        "Respond with ONLY a JSON object matching this schema:\n"
+        "{\n"
+        '  "id": "string",\n'
+        '  "name": "string",\n'
+        '  "description": "string",\n'
+        '  "trigger": "manual",\n'
+        '  "schedule": "cron expression or null",\n'
+        '  "steps": [\n'
+        "    {\n"
+        '      "id": "step_1",\n'
+        '      "name": "Human readable name",\n'
+        '      "action": "dispatch",\n'
+        '      "target": "module_id or category",\n'
+        '      "intent_template": "intent with {{variable}} placeholders",\n'
+        '      "payload": {},\n'
+        '      "next_on_success": "step_2",\n'
+        '      "next_on_failure": null\n'
+        "    }\n"
+        "  ],\n"
+        '  "enabled": true\n'
+        "}\n\n"
+        "Use sequential step ids like step_1, step_2. Keep it simple and valid."
+    )
+
+    try:
+        llm_response = await engine.llm_chat(
+            messages=[
+                LLMMessage(role="system", content=system_prompt),
+                LLMMessage(role="user", content=request.description.strip()),
+            ],
+            temperature=0.3,
+            max_tokens=1200,
+        )
+        raw = llm_response.content.strip()
+        if llm_response.provider == "none":
+            raise HTTPException(status_code=503, detail=raw)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"LLM workflow generation failed: {exc}") from exc
+
+    # Extract JSON if the model wrapped it in markdown.
+    if "```" in raw:
+        raw = raw.split("```")[1]
+        if raw.lower().startswith("json"):
+            raw = raw[4:]
+    raw = raw.strip()
+
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=422, detail=f"LLM returned invalid JSON: {exc}") from exc
+
+    if request.id:
+        data["id"] = request.id
+    elif not data.get("id"):
+        import uuid
+
+        data["id"] = f"wf_{uuid.uuid4().hex[:8]}"
+
+    try:
+        definition = WorkflowDefinition.model_validate(data)
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"Generated workflow failed validation: {exc}") from exc
+
+    created = engine.workflows.create_definition(definition)
+    engine.scheduler.sync_from_workflow_definitions()
+    return created.model_dump(mode="json")
 
 
 # ---------- Notifications ----------
@@ -704,6 +829,7 @@ class ChatRequest(BaseModel):
     message: str
     thread_id: str | None = None
     title: str | None = None
+    agent: bool = False
 
 
 class ChatResponse(BaseModel):
@@ -721,15 +847,23 @@ async def create_chat_message(
     """Send a message to the agency command center.
 
     The message is dispatched as a task and stored in a chat thread for history.
+    When ``agent`` is true, the LLM first plans the intent before dispatching.
     """
     if not request.message.strip():
         raise HTTPException(status_code=400, detail="Message cannot be empty")
 
-    thread, agency_message, task = await engine.chat_message(
-        thread_id=request.thread_id,
-        content=request.message.strip(),
-        title=request.title,
-    )
+    if request.agent:
+        thread, agency_message, task = await engine.agent_chat(
+            thread_id=request.thread_id,
+            content=request.message.strip(),
+            title=request.title,
+        )
+    else:
+        thread, agency_message, task = await engine.chat_message(
+            thread_id=request.thread_id,
+            content=request.message.strip(),
+            title=request.title,
+        )
     return {
         "thread_id": thread.id,
         "response": agency_message.content,

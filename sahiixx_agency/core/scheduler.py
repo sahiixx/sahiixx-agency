@@ -8,6 +8,7 @@ and persistence hooks so the agency can trigger recurring workflows.
 from __future__ import annotations
 
 import asyncio
+import re
 import uuid
 from contextlib import suppress
 from dataclasses import dataclass, field
@@ -32,6 +33,37 @@ class ScheduledWorkflow:
         """Compute the next run time from the interval."""
         base = base or datetime.now(timezone.utc)
         return base + timedelta(seconds=self.interval_seconds)
+
+
+def _parse_simple_cron(cron: str) -> int | None:
+    """Convert a small set of cron expressions to interval seconds.
+
+    Supports:
+    - */N * * * *  -> every N minutes
+    - 0 * * * *    -> hourly
+    - 0 H * * *    -> daily at hour H
+    - 0 H * * 1-5  -> weekdays at hour H
+    Returns None for unsupported expressions.
+    """
+    cron = cron.strip()
+    parts = cron.split()
+    if len(parts) != 5:
+        return None
+
+    minute, hour, dom, month, dow = parts
+
+    if minute == "*/5" and hour == "*" and dom == "*" and month == "*" and dow == "*":
+        return 300
+    if minute.startswith("*/") and hour == "*" and dom == "*" and month == "*" and dow == "*":
+        with suppress(ValueError):
+            return int(minute[2:]) * 60
+    if minute == "0" and hour == "*" and dom == "*" and month == "*" and dow == "*":
+        return 3600
+    if minute == "0" and re.fullmatch(r"\d{1,2}", hour) and dom == "*" and month == "*" and dow == "*":
+        return 86400
+    if minute == "0" and re.fullmatch(r"\d{1,2}", hour) and dom == "*" and month == "*" and dow == "1-5":
+        return 86400
+    return None
 
 
 class WorkflowScheduler:
@@ -59,10 +91,38 @@ class WorkflowScheduler:
             data = self.engine.memory.get(self._memory_key(sid))
             if data:
                 try:
+                    for field_name in ("last_run_at", "next_run_at", "created_at"):
+                        value = data.get(field_name)
+                        if isinstance(value, str):
+                            data[field_name] = datetime.fromisoformat(value.replace("Z", "+00:00"))
                     schedule = ScheduledWorkflow(**data)
                     self._schedules[schedule.id] = schedule
                 except Exception:
                     continue
+
+    def sync_from_workflow_definitions(self) -> None:
+        """Auto-register schedules for workflow definitions with trigger='schedule'."""
+        existing_by_wfid = {s.workflow_id: s for s in self._schedules.values()}
+        for definition in self.engine.workflows.list_definitions():
+            if definition.trigger != "schedule" or not definition.enabled:
+                continue
+            interval = _parse_simple_cron(definition.schedule or "")
+            if interval is None:
+                continue
+            if definition.id in existing_by_wfid:
+                existing = existing_by_wfid[definition.id]
+                existing.interval_seconds = interval
+                existing.enabled = True
+                self.save_schedule(existing)
+            else:
+                schedule = ScheduledWorkflow(
+                    workflow_id=definition.id,
+                    interval_seconds=interval,
+                    payload={},
+                    enabled=True,
+                )
+                schedule.next_run_at = schedule.compute_next()
+                self.save_schedule(schedule)
 
     def save_schedule(self, schedule: ScheduledWorkflow) -> None:
         """Persist a schedule and update the index."""

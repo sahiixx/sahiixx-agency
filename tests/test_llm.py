@@ -311,3 +311,49 @@ def test_api_llm_chat_records_tenant_and_project_cost_attribution(api_client, mo
     assert records[0]["tenant_id"] == "tenant_acme"
     assert records[0]["project_id"] == "project_roadmap"
     assert records[0]["category"] == "llm"
+
+
+@pytest.mark.asyncio
+async def test_manager_chat_falls_back_to_secondary_provider(memory, monkeypatch):
+    config = LLMConfig(
+        default_provider=LLMProvider.OPENAI,
+        providers={
+            "openai": LLMProviderConfig(api_key="test-key"),
+            "anthropic": LLMProviderConfig(api_key="test-key"),
+        },
+    )
+    manager = LLMManager(config, memory)
+
+    async def failing_chat(*args, **kwargs):
+        raise RuntimeError("OpenAI down")
+
+    async def backup_chat(*args, **kwargs):
+        return LLMResponse(
+            provider="anthropic",
+            model="claude",
+            content="Backup",
+            usage=LLMUsage(input_tokens=1, output_tokens=1),
+            latency_ms=10,
+        )
+
+    monkeypatch.setattr("sahiixx_agency.core.llm.OpenAICompatibleProvider.chat", failing_chat)
+    monkeypatch.setattr("sahiixx_agency.core.llm.AnthropicProvider.chat", backup_chat)
+
+    response = await manager.chat(messages=[LLMMessage(role="user", content="Hi")])
+    assert response.provider == "anthropic"
+    assert response.content == "Backup"
+
+
+@pytest.mark.asyncio
+async def test_manager_chat_returns_graceful_fallback_when_no_provider(memory, monkeypatch):
+    config = LLMConfig(default_provider=LLMProvider.OPENAI)
+    manager = LLMManager(config, memory)
+
+    def failing_create(*args, **kwargs):
+        raise ValueError("No key")
+
+    monkeypatch.setattr("sahiixx_agency.core.llm.create_provider", failing_create)
+
+    response = await manager.chat(messages=[LLMMessage(role="user", content="Hi")])
+    assert response.provider == "none"
+    assert "unavailable" in response.content.lower()

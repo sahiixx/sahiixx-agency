@@ -343,6 +343,19 @@ def _make_chrome_devtools_mcp(config, network_policy, audit_logger, task):
     return adapter, payload
 
 
+def _make_web_intel(config, network_policy, audit_logger, task):
+    from sahiixx_agency.adapters.web_intel import WebIntelAdapter
+
+    adapter = WebIntelAdapter(
+        clone_base_dir=os.path.join(config.data_dir, "repos"),
+        network_policy=network_policy,
+        audit_logger=audit_logger,
+    )
+    payload = dict(task.payload)
+    payload.setdefault("url", task.intent)
+    return adapter, payload
+
+
 def _make_discovery(config, network_policy, audit_logger, task):
     from sahiixx_agency.adapters.discovery_adapter import DiscoveryAdapter
 
@@ -410,6 +423,7 @@ _SPECIALIZED_ADAPTERS: dict[
     "intel_scout": _make_discovery,
     "lead_machine": _make_lead_machine,
     "qualification": _make_lead_machine,
+    "web_intel": _make_web_intel,
 }
 
 

@@ -148,3 +148,65 @@ async def test_seed_trending_pipeline_runs_end_to_end(engine):
     assert states["notify"] == WorkflowStepStatus.COMPLETED
     assert len(dispatched) == 2
     assert notified == ["Trending pipeline complete"]
+
+
+@pytest.mark.asyncio
+async def test_trigger_event_runs_matching_workflows(engine):
+    definition = WorkflowDefinition(
+        id="event-wf",
+        name="Event Workflow",
+        trigger="event",
+        event_topic="task.completed",
+        steps=[
+            WorkflowStep(id="react", name="React", action="dispatch", intent_template="process {{task_id}}"),
+        ],
+    )
+    engine.create_definition(definition)
+
+    async def fake_dispatch(intent, payload):
+        return {"intent": intent, "payload": payload}
+
+    instances = await engine.trigger_event("task.completed", {"task_id": "task_123"}, dispatch=fake_dispatch)
+    assert len(instances) == 1
+    assert instances[0].status == WorkflowStatus.COMPLETED
+
+
+@pytest.mark.asyncio
+async def test_trigger_event_ignores_non_matching_topic(engine):
+    definition = WorkflowDefinition(
+        id="event-wf",
+        name="Event Workflow",
+        trigger="event",
+        event_topic="task.completed",
+        steps=[WorkflowStep(id="react", name="React", action="noop")],
+    )
+    engine.create_definition(definition)
+
+    instances = await engine.trigger_event("task.failed", {"task_id": "task_123"})
+    assert len(instances) == 0
+
+
+@pytest.mark.asyncio
+async def test_trigger_webhook_runs_workflow(engine):
+    definition = WorkflowDefinition(
+        id="webhook-wf",
+        name="Webhook Workflow",
+        trigger="webhook",
+        steps=[
+            WorkflowStep(id="process", name="Process", action="dispatch", intent_template="handle webhook {{webhook.action}}"),
+        ],
+    )
+    engine.create_definition(definition)
+
+    async def fake_dispatch(intent, payload):
+        return {"intent": intent, "payload": payload}
+
+    result = await engine.trigger_webhook("webhook-wf", {"action": "push"}, dispatch=fake_dispatch)
+    assert result is not None
+    assert result.status == WorkflowStatus.COMPLETED
+
+
+@pytest.mark.asyncio
+async def test_trigger_webhook_returns_none_for_missing_workflow(engine):
+    result = await engine.trigger_webhook("missing-wf", {})
+    assert result is None

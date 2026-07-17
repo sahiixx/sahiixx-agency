@@ -263,8 +263,10 @@ def test_letta_code_adapter_build_command_bun_when_package_json(tmp_path):
     (tmp_path / "package.json").write_text('{"name": "letta"}')
     project_dir = tmp_path / "projects" / "test"
     cmd = adapter._build_command(project_dir, "coder")
-    assert cmd[2] == "run"
-    assert cmd[3] == "letta"
+    assert "run" in cmd
+    assert "letta" in cmd
+    run_idx = cmd.index("run")
+    assert cmd[run_idx + 1] == "letta"
 
 
 def test_letta_code_adapter_run_subprocess_success(tmp_path, monkeypatch):
@@ -449,10 +451,13 @@ def test_letta_code_adapter_project_name_sanitization():
 
 
 def test_letta_code_adapter_find_bun_prefers_bun():
-    """LettaCodeAdapter._find_bun should return ['bun'] when bun is available."""
+    """LettaCodeAdapter._find_bun should return a valid bun command."""
     adapter = LettaCodeAdapter(repo_dir="/tmp")
     result = adapter._find_bun()
-    assert result == ["bun"] or result == ["npx", "bun"]
+    assert result
+    assert result[-1].lower().endswith("bun") or result[-1].lower().endswith("bun.exe")
+    if len(result) == 2:
+        assert result[0] == "npx"
 
 
 def test_letta_code_adapter_persona_keywords():

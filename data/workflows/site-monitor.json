@@ -1,0 +1,69 @@
+{
+  "id": "site-monitor",
+  "name": "SAHIIX Site Monitor",
+  "description": "Daily uptime check for portfolio and OS shell; notifies on failure",
+  "trigger": "schedule",
+  "schedule": "0 6 * * *",
+  "event_topic": null,
+  "steps": [
+    {
+      "id": "check_portfolio",
+      "name": "Check portfolio",
+      "action": "dispatch",
+      "target": "web_intel",
+      "intent_template": "fetch https://sahiix-portfolio.pages.dev/#work",
+      "payload": {},
+      "requires_approval": false,
+      "next_on_success": "check_os",
+      "next_on_failure": "notify_failure",
+      "condition": null
+    },
+    {
+      "id": "check_os",
+      "name": "Check OS shell",
+      "action": "dispatch",
+      "target": "web_intel",
+      "intent_template": "fetch https://sahiixx-os.pages.dev",
+      "payload": {},
+      "requires_approval": false,
+      "next_on_success": "notify_success",
+      "next_on_failure": "notify_failure",
+      "condition": null
+    },
+    {
+      "id": "notify_success",
+      "name": "Notify success",
+      "action": "notify",
+      "target": null,
+      "intent_template": null,
+      "payload": {
+        "channel": "sse",
+        "title": "Sites healthy",
+        "body": "Portfolio and OS shell are reachable."
+      },
+      "requires_approval": false,
+      "next_on_success": null,
+      "next_on_failure": null,
+      "condition": null
+    },
+    {
+      "id": "notify_failure",
+      "name": "Notify failure",
+      "action": "notify",
+      "target": null,
+      "intent_template": null,
+      "payload": {
+        "channel": "sse",
+        "title": "Site down",
+        "body": "One of the monitored sites failed to respond."
+      },
+      "requires_approval": false,
+      "next_on_success": null,
+      "next_on_failure": null,
+      "condition": null
+    }
+  ],
+  "enabled": true,
+  "created_at": "2026-07-17T18:39:55.089442Z",
+  "updated_at": "2026-07-17T18:39:55.089442Z"
+}

@@ -582,3 +582,75 @@ async def test_engine_uses_generic_adapter_for_unknown_module(config, fake_regis
     assert task.result["execution"]["status"] == "success"
     await engine.stop_worker()
 
+
+
+@pytest.mark.asyncio
+async def test_sync_repos_publishes_module_added_for_new_modules(engine):
+    events: list = []
+    engine.bus.subscribe("registry.module_added", events.append)
+
+    # Baseline sync (registry empty -> full): establishes baseline, no events.
+    await engine.sync_repos("sahiixx")
+    assert events == []
+
+    # Second sync introduces one new module -> exactly one event.
+    new_mod = RepoNode(
+        id="new-module",
+        name="new-module",
+        full_name="sahiixx/new-module",
+        url="https://github.com/sahiixx/new-module",
+        category=RepoCategory.AGENT_FRAMEWORK,
+    )
+
+    async def fake_discover_round_two(username):
+        engine.registry._modules[new_mod.id] = new_mod
+        return [*FAKE_MODULES, new_mod]
+
+    engine.registry.discover = fake_discover_round_two
+    discovered = await engine.sync_repos("sahiixx")
+
+    assert len(discovered) == 3
+    assert len(events) == 1
+    assert events[0].topic == "registry.module_added"
+    assert events[0].sender == "engine"
+    assert events[0].payload["id"] == "new-module"
+    assert events[0].payload["name"] == "new-module"
+
+
+def test_agency_config_portfolio_publisher_defaults():
+    assert AgencyConfig().portfolio_publisher == {}
+
+
+def test_agency_config_portfolio_publisher_accepts_settings():
+    config = AgencyConfig(portfolio_publisher={"enabled": True, "dry_run": False})
+    assert config.portfolio_publisher["enabled"] is True
+
+
+def test_agency_yaml_portfolio_publisher_wiring():
+    import yaml
+
+    with open("config/agency.yaml", encoding="utf-8") as fh:
+        data = yaml.safe_load(fh)
+    assert data["portfolio_publisher"]["enabled"] is False
+    assert data["portfolio_publisher"]["dry_run"] is True
+    assert data["ecosystem"]["portfolio_publisher"]["category"] == "content_media"
+    assert data["routing_rules"][0]["target"] == "portfolio_publisher"
+
+
+def test_portfolio_publisher_factory_registered():
+    from sahiixx_agency.core.engine import _SPECIALIZED_ADAPTERS
+
+    assert "portfolio_publisher" in _SPECIALIZED_ADAPTERS
+    assert "portfolio-publisher" in _SPECIALIZED_ADAPTERS
+
+
+def test_portfolio_publisher_factory_builds_adapter(tmp_path, monkeypatch):
+    from sahiixx_agency.core.engine import _make_portfolio_publisher
+
+    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+    config = AgencyConfig(data_dir=str(tmp_path))
+    task = AgencyTask(id="t1", intent="publish portfolio entry for postiz-app", payload={})
+    adapter, payload = _make_portfolio_publisher(config, None, None, task)
+    assert adapter.settings["registry_path"].endswith("registry.json")
+    assert adapter.settings["notify_channels"] == ["sse"]
+    assert payload["brief"] == "publish portfolio entry for postiz-app"

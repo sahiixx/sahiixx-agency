@@ -356,6 +356,31 @@ def _make_web_intel(config, network_policy, audit_logger, task):
     return adapter, payload
 
 
+def _make_portfolio_publisher(config, network_policy, audit_logger, task):
+    from sahiixx_agency.adapters.portfolio_publisher import PortfolioPublisherAdapter
+    from sahiixx_agency.core.llm import LLMManager
+    from sahiixx_agency.core.memory import AgencyMemory
+    from sahiixx_agency.core.notifications import NotificationManager
+
+    settings = dict(config.portfolio_publisher)
+    settings.setdefault("registry_path", os.path.join(config.data_dir, "registry.json"))
+    if not settings.get("notify_channels"):
+        telegram_cfg = (config.notifications or {}).get("telegram") or {}
+        has_token = bool(telegram_cfg.get("bot_token") or os.environ.get("TELEGRAM_BOT_TOKEN"))
+        settings["notify_channels"] = ["telegram", "sse"] if has_token else ["sse"]
+    adapter = PortfolioPublisherAdapter(
+        settings=settings,
+        llm_manager=LLMManager(config.llm, AgencyMemory(config.data_dir, backend=config.memory_backend)),
+        notifications=NotificationManager(config=config.notifications),
+        clone_base_dir=os.path.join(config.data_dir, "repos"),
+        network_policy=network_policy,
+        audit_logger=audit_logger,
+    )
+    payload = dict(task.payload)
+    payload.setdefault("brief", task.intent)
+    return adapter, payload
+
+
 def _make_discovery(config, network_policy, audit_logger, task):
     from sahiixx_agency.adapters.discovery_adapter import DiscoveryAdapter
 
@@ -392,6 +417,8 @@ _SPECIALIZED_ADAPTERS: dict[
     "linkedin": _make_linkedin,
     "instagram": _make_instagram,
     "postiz": _make_postiz,
+    "portfolio_publisher": _make_portfolio_publisher,
+    "portfolio-publisher": _make_portfolio_publisher,
     "gcc_outbound": _make_gcc_outbound,
     "gcc-outbound": _make_gcc_outbound,
     "langchain": _make_agentic_framework_adapter("langchain"),
@@ -933,8 +960,20 @@ class AgencyEngine:
     async def sync_repos(self, username: str | None = None) -> list[RepoNode]:
         """Sync all GitHub repos into the registry."""
         user = username or self.config.github_username
+        before = {m.id for m in self.registry.modules}
         discovered = await self.registry.discover(user)
         self.memory.log_event("registry.sync", {"username": user, "count": len(discovered)})
+        if before:
+            for module in discovered:
+                if module.id not in before:
+                    await self.bus.publish(
+                        BusMessage(
+                            id=f"msg_{uuid.uuid4().hex[:8]}",
+                            topic="registry.module_added",
+                            sender="engine",
+                            payload=module.model_dump(mode="json"),
+                        )
+                    )
         return discovered
 
     def _load_tasks(self) -> None:

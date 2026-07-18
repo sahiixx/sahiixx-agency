@@ -47,6 +47,13 @@ notifications:
     enabled: false
     url: null
 
+# ─── Portfolio Auto-Publish ────────────────────────────────────
+portfolio_publisher:
+  enabled: false
+  dry_run: true
+  repo_path: "C:/Users/sahii/Projects/portfolio"
+  ignore: []
+
 # ─── Security Hardening ────────────────────────────────────────
 security:
   audit_enabled: true
@@ -133,6 +140,15 @@ ecosystem:
     capabilities: [web-fetch, profile-analysis, project-extraction]
     category: agent_framework
     bus_channel: "intel.*"
+    protocol: internal
+    priority: 1
+  portfolio_publisher:
+    repo: sahiixx-agency
+    url: https://github.com/sahiixx/sahiixx-agency
+    role: "Draft and publish portfolio entries for newly shipped modules"
+    capabilities: [portfolio-publish, content-generation, pages-deploy]
+    category: content_media
+    bus_channel: "publish.*"
     protocol: internal
     priority: 1
   # ── Lead Machine (E2E Dubai RE pipeline) ──
@@ -654,6 +670,8 @@ ecosystem:
 
 # ─── Routing Rules ─────────────────────────────────────────────
 routing_rules:
+  - pattern: 'publish portfolio|portfolio entry|add .* to (the )?portfolio'
+    target: portfolio_publisher
   - pattern: 'github\.com/sahiixx/sahiixx|sahiixx profile|profile README|flagship projects.*registry|missing from the agency registry'
     target: web_intel
   - pattern: "trending repo|trending github|trending project|discover.*(repo|project|github)|find.*trending|scout.*(repo|github)|hidden gem|new github project|intel scout|what.*trending.*(repo|github)"

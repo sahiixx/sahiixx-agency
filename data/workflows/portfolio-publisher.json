@@ -1,0 +1,25 @@
+{
+  "id": "portfolio-publisher",
+  "name": "Portfolio Auto-Publisher",
+  "description": "Publishes a portfolio entry when a new module appears in the registry",
+  "trigger": "event",
+  "schedule": null,
+  "event_topic": "registry.module_added",
+  "steps": [
+    {
+      "id": "publish_entry",
+      "name": "Publish portfolio entry",
+      "action": "dispatch",
+      "target": "portfolio_publisher",
+      "intent_template": "publish portfolio entry for {name}",
+      "payload": {},
+      "requires_approval": false,
+      "next_on_success": null,
+      "next_on_failure": null,
+      "condition": null
+    }
+  ],
+  "enabled": true,
+  "created_at": "2026-07-17T21:05:57Z",
+  "updated_at": "2026-07-17T21:05:57Z"
+}

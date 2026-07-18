@@ -12,7 +12,7 @@
       "action": "dispatch",
       "target": "portfolio_publisher",
       "intent_template": "publish portfolio entry for {name}",
-      "payload": {},
+      "payload": {"module_id": "{id}"},
       "requires_approval": false,
       "next_on_success": null,
       "next_on_failure": null,

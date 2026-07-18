@@ -234,3 +234,74 @@ async def test_dirty_repo_aborts_before_drafting(workspace, monkeypatch):
     assert result["status"] == "failed"
     assert "uncommitted" in result["error"]
     assert llm_called == []
+
+
+@pytest.mark.asyncio
+async def test_explicit_module_id_bypasses_fuzzy_match(workspace, monkeypatch):
+    repo, settings = workspace
+    adapter = make_adapter(settings)
+
+    async def fake_run(command, *, cwd, timeout):
+        return True, ""
+
+    monkeypatch.setattr(adapter, "_run", fake_run)
+    result = await adapter.execute({"brief": "unrelated text", "module_id": "postiz-app"})
+    assert result["status"] == "success"
+    assert result["module"] == "postiz-app"
+
+
+@pytest.mark.asyncio
+async def test_explicit_module_id_not_found(workspace):
+    repo, settings = workspace
+    notifications = FakeNotifications()
+    adapter = make_adapter(settings, notifications=notifications)
+    result = await adapter.execute({"brief": "x", "module_id": "ghost-module"})
+    assert result["status"] == "failed"
+    assert "not found in registry" in result["error"]
+    assert len(notifications.sent) == 1
+
+
+@pytest.mark.asyncio
+async def test_registry_unreadable_fails(workspace):
+    repo, settings = workspace
+    settings["registry_path"] = str(repo / "missing.json")
+    result = await make_adapter(settings).execute({"brief": "publish portfolio entry for postiz-app"})
+    assert result["status"] == "failed"
+    assert "registry unreadable" in result["error"]
+
+
+@pytest.mark.asyncio
+async def test_unreadable_data_ts_fails_and_notifies(workspace):
+    repo, settings = workspace
+    settings["repo_path"] = str(repo / "nonexistent")
+    notifications = FakeNotifications()
+    adapter = make_adapter(settings, notifications=notifications)
+    result = await adapter.execute({"brief": "publish portfolio entry for postiz-app"})
+    assert result["status"] == "failed"
+    assert "data.ts not readable" in result["error"]
+    assert len(notifications.sent) == 1
+
+
+@pytest.mark.asyncio
+async def test_commit_failure_unstages_and_restores(workspace, monkeypatch):
+    repo, settings = workspace
+    settings["dry_run"] = False
+    adapter = make_adapter(settings)
+    data_ts = repo / "src" / "data.ts"
+    original = data_ts.read_text(encoding="utf-8")
+    calls: list[str] = []
+
+    async def fake_run(command, *, cwd, timeout):
+        calls.append(command)
+        if command.startswith("git status"):
+            return True, ""
+        if command.startswith("git commit"):
+            return False, "nothing to commit"
+        return True, "ok"
+
+    monkeypatch.setattr(adapter, "_run", fake_run)
+    result = await adapter.execute({"brief": "publish portfolio entry for postiz-app"})
+    assert result["status"] == "failed"
+    assert "git commit failed" in result["error"]
+    assert "git restore --staged src/data.ts" in calls
+    assert data_ts.read_text(encoding="utf-8") == original

@@ -47,7 +47,18 @@ class PortfolioPublisherAdapter(BaseAdapter):
             return {"status": "skipped", "reason": "portfolio_publisher disabled"}
 
         intent = str(payload.get("brief") or payload.get("module") or "")
-        module = self._find_module(intent)
+        registry_path = self.settings.get("registry_path", "./data/registry.json")
+        modules = self._load_registry(registry_path)
+        if modules is None:
+            return await self._fail(f"registry unreadable at {registry_path}")
+        module: dict[str, Any] | None = None
+        explicit = str(payload.get("module_id") or "").strip()
+        if explicit:
+            module = self._find_module_by_id(explicit, modules)
+            if module is None:
+                return await self._fail(f"module_id {explicit!r} not found in registry")
+        if module is None:
+            module = self._find_module(intent, modules)
         if module is None:
             return await self._fail(f"No registry module matched intent: {intent!r}")
         slug = slugify(str(module.get("name") or module.get("id")))
@@ -93,6 +104,9 @@ class PortfolioPublisherAdapter(BaseAdapter):
         if ok:
             ok, out = await self._run(f'git commit -m "feat: add {slug} to selected work [opa]"', cwd=repo, timeout=60)
         if not ok:
+            # Unstage first — a staged-but-uncommitted edit would trip the
+            # dirty-tree pre-flight on every future publish.
+            await self._run("git restore --staged src/data.ts", cwd=repo, timeout=60)
             self._write_file(data_ts, original)
             return await self._fail(f"git commit failed, data.ts restored:\n{out[-800:]}")
 
@@ -110,20 +124,33 @@ class PortfolioPublisherAdapter(BaseAdapter):
 
     # --- lookup + gates ---------------------------------------------------
 
-    def _find_module(self, intent: str) -> dict[str, Any] | None:
-        """Best registry match for a free-text intent (longest id/name contained in it)."""
-        registry_path = self.settings.get("registry_path", "./data/registry.json")
+    @staticmethod
+    def _load_registry(registry_path: str) -> list[dict[str, Any]] | None:
+        """Load the persisted registry module list; None when unreadable/corrupt."""
         try:
             with open(registry_path, encoding="utf-8") as fh:
                 data = json.load(fh)
         except (OSError, json.JSONDecodeError):
             return None
+        modules = data.get("modules", [])
+        return [m for m in modules if isinstance(m, dict)]
+
+    @staticmethod
+    def _find_module_by_id(module_id: str, modules: list[dict[str, Any]]) -> dict[str, Any] | None:
+        """Exact (case-insensitive) match on module id."""
+        lowered = module_id.lower()
+        for module in modules:
+            if str(module.get("id") or "").lower() == lowered:
+                return module
+        return None
+
+    @staticmethod
+    def _find_module(intent: str, modules: list[dict[str, Any]]) -> dict[str, Any] | None:
+        """Best registry match for a free-text intent (longest id/name contained in it)."""
         lowered = intent.lower()
         best: dict[str, Any] | None = None
         best_len = 0
-        for module in data.get("modules", []):
-            if not isinstance(module, dict):
-                continue
+        for module in modules:
             for key in (module.get("id"), module.get("name")):
                 if key and key.lower() in lowered and len(key) > best_len:
                     best = module
@@ -143,7 +170,9 @@ class PortfolioPublisherAdapter(BaseAdapter):
                 if f'id: "{slug}"' in fh.read():
                     return "already published"
         except OSError:
-            return "data.ts not readable"
+            # Unreadable data.ts is a hard failure, owned by the pre-flight in
+            # execute() (fail + notify) — not a silent skip.
+            return None
         return None
 
     # --- drafting ---------------------------------------------------------

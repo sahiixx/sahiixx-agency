@@ -226,3 +226,11 @@ def test_portfolio_publisher_workflow_definition():
     assert step.action == "dispatch"
     assert step.requires_approval is False
     assert "{name}" in (step.intent_template or "")
+
+
+def test_render_json_substitutes_context_in_payload():
+    rendered = WorkflowEngine._render_json(
+        {"module_id": "{id}", "nested": ["{name}"], "n": 1},
+        {"id": "x1", "name": "n1"},
+    )
+    assert rendered == {"module_id": "x1", "nested": ["n1"], "n": 1}

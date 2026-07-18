@@ -105,7 +105,7 @@ def _ts_string(value: str) -> str:
 
 def _ts_string_array(values: list[str], indent: int) -> str:
     pad = " " * indent
-    if len(values) <= 4 and all(len(v) < 40 for v in values):
+    if len(values) <= 5 and all(len(v) < 40 for v in values):
         return "[" + ", ".join(_ts_string(v) for v in values) + "]"
     inner = ",\n".join(f"{pad}  {_ts_string(v)}" for v in values)
     return "[\n" + inner + ",\n" + pad + "]"

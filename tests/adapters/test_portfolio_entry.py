@@ -93,3 +93,11 @@ def test_entry_from_response_overrides_llm_id_and_url():
     entry = entry_from_response(json.dumps(data), module=MODULE, index="05", accent="#34d399", year="2026")
     assert entry.id == "postiz-app"
     assert entry.url == "https://github.com/sahiixx/postiz-app"
+
+
+def test_render_ts_entry_inlines_five_item_arrays():
+    data = json.loads(ENTRY_JSON)
+    data["stack"] = ["A", "B", "C", "D", "E"]
+    entry = entry_from_response(json.dumps(data), module=MODULE, index="05", accent="#34d399", year="2026")
+    rendered = render_ts_entry(entry)
+    assert 'stack: ["A", "B", "C", "D", "E"]' in rendered

@@ -275,7 +275,8 @@ class WorkflowEngine:
                 if dispatch is None:
                     raise RuntimeError("Dispatch function not provided")
                 intent = self._render_template(step.intent_template or step.name, instance.context)
-                payload = {**step.payload, "workflow_instance_id": instance.id}
+                rendered_payload = self._render_json(step.payload, instance.context)
+                payload = {**rendered_payload, "workflow_instance_id": instance.id}
                 task = await dispatch(intent, payload)
                 if isinstance(task, AgencyTask):
                     state.task_id = task.id

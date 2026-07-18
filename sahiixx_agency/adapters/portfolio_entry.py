@@ -61,7 +61,7 @@ def build_prompt(module: dict[str, Any], readme: str, *, index: str, accent: str
         "Module metadata (JSON):\n" + json.dumps(meta, indent=2) + "\n\n"
         "README excerpt:\n" + (readme[:3000] or "(no README available)") + "\n\n"
         "Return ONLY a JSON object with exactly these keys:\n"
-        '- "name": display name (short, may restyle e.g. "sahiixx-agency" -> "SAHIIX Agency")\n'
+        '- "name": display name for THIS module, derived from its name (you may restyle casing/spacing only)\n'
         '- "tagline": one line, <= 80 chars\n'
         '- "description": 2-3 sentences, <= 300 chars\n'
         '- "longDescription": 2 paragraphs, each 1-3 sentences\n'
@@ -89,11 +89,11 @@ def _extract_json(raw: str) -> str:
 def entry_from_response(raw: str, *, module: dict[str, Any], index: str, accent: str, year: str) -> ProjectEntry:
     """Parse + validate the LLM JSON response into a ProjectEntry."""
     data = json.loads(_extract_json(raw))
-    data.setdefault("id", slugify(str(module.get("name") or module.get("id") or "module")))
+    data["id"] = slugify(str(module.get("name") or module.get("id") or "module"))
     data["index"] = index
     data["accent"] = accent
     data["year"] = year
-    data.setdefault("url", module.get("url") or "")
+    data["url"] = module.get("url") or data.get("url") or ""
     if not data.get("name"):
         data["name"] = str(module.get("name") or data["id"])
     return ProjectEntry.model_validate(data)

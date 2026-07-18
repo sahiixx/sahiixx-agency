@@ -84,3 +84,12 @@ def test_render_ts_entry_matches_data_ts_style():
     # no optional fields rendered
     assert "featured" not in rendered
     assert "image" not in rendered
+
+
+def test_entry_from_response_overrides_llm_id_and_url():
+    data = json.loads(ENTRY_JSON)
+    data["id"] = "evil-llm-slug"
+    data["url"] = "https://github.com/wrong-org/nope"
+    entry = entry_from_response(json.dumps(data), module=MODULE, index="05", accent="#34d399", year="2026")
+    assert entry.id == "postiz-app"
+    assert entry.url == "https://github.com/sahiixx/postiz-app"

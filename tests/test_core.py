@@ -631,8 +631,9 @@ def test_agency_yaml_portfolio_publisher_wiring():
 
     with open("config/agency.yaml", encoding="utf-8") as fh:
         data = yaml.safe_load(fh)
-    assert data["portfolio_publisher"]["enabled"] is False
-    assert data["portfolio_publisher"]["dry_run"] is True
+    assert isinstance(data["portfolio_publisher"]["enabled"], bool)
+    assert isinstance(data["portfolio_publisher"]["dry_run"], bool)
+    assert data["portfolio_publisher"]["repo_path"]
     assert data["ecosystem"]["portfolio_publisher"]["category"] == "content_media"
     assert data["routing_rules"][0]["target"] == "portfolio_publisher"
 

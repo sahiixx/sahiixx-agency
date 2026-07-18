@@ -49,7 +49,7 @@ notifications:
 
 # ─── Portfolio Auto-Publish ────────────────────────────────────
 portfolio_publisher:
-  enabled: false
+  enabled: true
   dry_run: true
   repo_path: "C:/Users/sahii/Projects/portfolio"
   ignore: []
@@ -95,7 +95,7 @@ llm:
       default_model: "openai/gpt-4o-mini"
     ollama:
       base_url: "http://localhost:11434"
-      default_model: "llama3.1"
+      default_model: "llama3.2:3b"
   pricing:
     gpt-4o:
       input_per_1m_tokens: 2.50

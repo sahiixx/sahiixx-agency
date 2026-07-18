@@ -1,6 +1,6 @@
 # Portfolio Auto-Publish — Design Spec
 
-**Date:** 2026-07-17 · **Repo:** sahiixx-agency (OPA) · **Status:** approved by mandate ("DO IT ALL"), pre-implementation
+**Date:** 2026-07-17 · **Repo:** sahiixx-agency (OPA) · **Status:** implemented 2026-07-18 (merged `0f4512f`; E2E-verified live publish of `relaymux`)
 
 ## 1. Goal
 

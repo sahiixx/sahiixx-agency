@@ -210,3 +210,19 @@ async def test_trigger_webhook_runs_workflow(engine):
 async def test_trigger_webhook_returns_none_for_missing_workflow(engine):
     result = await engine.trigger_webhook("missing-wf", {})
     assert result is None
+
+
+def test_portfolio_publisher_workflow_definition():
+    import json
+
+    with open("data/workflows/portfolio-publisher.json", encoding="utf-8") as fh:
+        definition = WorkflowDefinition.model_validate(json.load(fh))
+    assert definition.id == "portfolio-publisher"
+    assert definition.trigger == "event"
+    assert definition.event_topic == "registry.module_added"
+    assert definition.enabled is True
+    assert len(definition.steps) == 1
+    step = definition.steps[0]
+    assert step.action == "dispatch"
+    assert step.requires_approval is False
+    assert "{name}" in (step.intent_template or "")

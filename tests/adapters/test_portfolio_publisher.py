@@ -179,6 +179,7 @@ async def test_full_pipeline_inserts_builds_commits_deploys(workspace, monkeypat
     content = (repo / "src" / "data.ts").read_text(encoding="utf-8")
     assert 'id: "postiz-app"' in content
     assert content.index('id: "postiz-app"') < content.index(MARKER)
+    assert '\n  {\n    id: "postiz-app",' in content
     assert any("npm run build" in c for c in calls)
     assert any("wrangler pages deploy dist" in c for c in calls)
     assert any("git commit" in c for c in calls)

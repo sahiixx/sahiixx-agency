@@ -82,7 +82,7 @@ class PortfolioPublisherAdapter(BaseAdapter):
             await self._notify("Portfolio dry-run", f"Rendered entry for {entry.name}:\n\n{rendered}")
             return {"status": "success", "dry_run": True, "module": slug, "entry": rendered}
 
-        self._write_file(data_ts, original.replace(MARKER, rendered + "\n  " + MARKER))
+        self._write_file(data_ts, original.replace(f"  {MARKER}", rendered + "\n  " + MARKER))
 
         ok, out = await self._run("npm run build", cwd=repo, timeout=300)
         if not ok:

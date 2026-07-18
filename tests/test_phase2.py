@@ -85,6 +85,33 @@ async def test_scheduler_tick_triggers_workflow(engine: AgencyEngine) -> None:
     assert schedule.next_run_at > schedule.last_run_at
 
 
+@pytest.mark.asyncio
+async def test_scheduler_trigger_passes_dispatch_and_notify(engine: AgencyEngine) -> None:
+    from sahiixx_agency.core.models import WorkflowDefinition, WorkflowStep
+
+    engine.workflows._definitions["wf_1"] = WorkflowDefinition(
+        id="wf_1",
+        name="Test Workflow",
+        steps=[WorkflowStep(id="step_1", name="Step 1", type="noop")],
+    )
+    scheduler = WorkflowScheduler(engine)
+    schedule = ScheduledWorkflow(workflow_id="wf_1", interval_seconds=60)
+
+    captured: dict = {}
+
+    async def fake_run_instance(instance_id, *, dispatch=None, notify=None):
+        captured["dispatch"] = dispatch
+        captured["notify"] = notify
+        return None
+
+    engine.workflows.run_instance = fake_run_instance
+    await scheduler._trigger(schedule)
+    # bound methods: `engine.dispatch is engine.dispatch` is False (new object
+    # per access) — compare equality, not identity.
+    assert captured["dispatch"] == engine.dispatch
+    assert captured["notify"] == engine.notify
+
+
 def test_scheduler_sync_from_workflow_definitions(engine: AgencyEngine) -> None:
     from sahiixx_agency.core.models import WorkflowDefinition, WorkflowStep
 

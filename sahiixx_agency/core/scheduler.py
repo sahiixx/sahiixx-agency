@@ -194,7 +194,11 @@ class WorkflowScheduler:
         try:
             instance = self.engine.workflows.create_instance(schedule.workflow_id, schedule.payload)
             if instance is not None:
-                await self.engine.workflows.run_instance(instance.id)
+                await self.engine.workflows.run_instance(
+                    instance.id,
+                    dispatch=self.engine.dispatch,
+                    notify=self.engine.notify,
+                )
             else:
                 self.engine.memory.log_event(
                     "scheduler.workflow_failed",

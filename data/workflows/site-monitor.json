@@ -53,7 +53,7 @@
       "target": null,
       "intent_template": null,
       "payload": {
-        "channel": "sse",
+        "channel": "telegram",
         "title": "Site down",
         "body": "One of the monitored sites failed to respond."
       },

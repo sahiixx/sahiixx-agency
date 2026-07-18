@@ -146,7 +146,9 @@ class NotificationManager:
 
     async def _send_telegram(self, notification: Notification) -> None:
         token = self.config.get("telegram", {}).get("token") or os.environ.get("TELEGRAM_BOT_TOKEN")
-        chat_id = notification.recipient or self.config.get("telegram", {}).get("chat_id")
+        chat_id = notification.recipient or self.config.get("telegram", {}).get("chat_id") or os.environ.get(
+            "TELEGRAM_CHAT_ID"
+        )
         if not token or not chat_id:
             notification.status = "failed"
             notification.error = "Telegram token or chat_id not configured"

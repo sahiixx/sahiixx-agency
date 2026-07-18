@@ -34,7 +34,9 @@ async def test_broadcast_to_multiple_channels(manager):
 
 
 @pytest.mark.asyncio
-async def test_telegram_fails_without_config(manager):
+async def test_telegram_fails_without_config(manager, monkeypatch):
+    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+    monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
     notification = await manager.send(NotificationChannel.TELEGRAM, "Hello", "World")
     assert notification.status == "failed"
     assert "token" in (notification.error or "").lower() or "chat" in (notification.error or "").lower()
@@ -55,6 +57,21 @@ def test_history_filters_by_channel(manager):
     sse_history = manager.history(channel=NotificationChannel.SSE)
     assert len(sse_history) == 1
     assert sse_history[0].title == "A"
+
+
+@pytest.mark.asyncio
+async def test_telegram_chat_id_falls_back_to_env(manager, monkeypatch):
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "12345")
+    manager.config = {"telegram": {"token": "test-token"}}
+
+    async def fake_post(self, url, **kwargs):
+        import httpx
+
+        return httpx.Response(200, json={"ok": True}, request=httpx.Request("POST", url))
+
+    monkeypatch.setattr("httpx.AsyncClient.post", fake_post)
+    notification = await manager.send(NotificationChannel.TELEGRAM, "Hello", "World")
+    assert notification.status == "sent"
 
 
 @pytest.mark.asyncio

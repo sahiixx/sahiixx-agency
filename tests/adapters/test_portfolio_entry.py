@@ -8,6 +8,7 @@ import pytest
 
 from sahiixx_agency.adapters.portfolio_entry import (
     ProjectEntry,
+    build_prompt,
     entry_from_response,
     next_index,
     render_ts_entry,
@@ -101,3 +102,11 @@ def test_render_ts_entry_inlines_five_item_arrays():
     entry = entry_from_response(json.dumps(data), module=MODULE, index="05", accent="#34d399", year="2026")
     rendered = render_ts_entry(entry)
     assert 'stack: ["A", "B", "C", "D", "E"]' in rendered
+
+
+def test_build_prompt_includes_style_rules_and_module_meta():
+    prompt = build_prompt(MODULE, "readme text", index="05", accent="#34d399", year="2026")
+    assert "Style rules" in prompt
+    assert "seamless" in prompt  # banned-word list present
+    assert "postiz-app" in prompt  # module metadata
+    assert "readme text" in prompt

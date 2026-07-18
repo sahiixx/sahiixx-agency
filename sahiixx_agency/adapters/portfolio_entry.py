@@ -10,6 +10,17 @@ from pydantic import BaseModel, Field
 
 ACCENTS = ["#f59e0b", "#ff4d4d", "#7c5cff", "#22d3ee", "#34d399", "#f472b6"]
 
+# Style rules distilled from the hand-written portfolio entries. Kept as rules
+# rather than a sample entry on purpose: small local models parrot an exemplar's
+# content (verified with llama3.2 — it drafted NEXUS copy for an unrelated repo).
+STYLE_RULES = """\
+- Every field names something concrete: a system, port, datastore, protocol, or file.
+- Banned words: seamless, streamline, productivity, solution, empower, leverage.
+- tagline: what it does + where it runs, <= 10 words.
+- problem: the concrete pain — name the systems/workflow involved.
+- architecture: components joined with " · ", one line.
+- highlights: facts, not benefits."""
+
 
 class ProjectEntry(BaseModel):
     """A portfolio `Project` entry (mirrors src/data.ts, minus optional fields)."""
@@ -58,10 +69,11 @@ def build_prompt(module: dict[str, Any], readme: str, *, index: str, accent: str
         "You are writing a new entry for Sahil's curated developer portfolio "
         "(sahiix-portfolio.pages.dev). Voice: confident, concrete, engineer-to-engineer; "
         "short sentences; no buzzwords, no emoji, no exclamation marks.\n\n"
+        "Style rules (follow exactly):\n" + STYLE_RULES + "\n\n"
         "Module metadata (JSON):\n" + json.dumps(meta, indent=2) + "\n\n"
         "README excerpt:\n" + (readme[:3000] or "(no README available)") + "\n\n"
         "Return ONLY a JSON object with exactly these keys:\n"
-        '- "name": display name for THIS module, derived from its name (you may restyle casing/spacing only)\n'
+        '- "name": display name derived from the module name in the metadata (never from the exemplar; restyle casing/spacing only)\n'
         '- "tagline": one line, <= 80 chars\n'
         '- "description": 2-3 sentences, <= 300 chars\n'
         '- "longDescription": 2 paragraphs, each 1-3 sentences\n'

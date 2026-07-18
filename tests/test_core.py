@@ -635,3 +635,22 @@ def test_agency_yaml_portfolio_publisher_wiring():
     assert data["portfolio_publisher"]["dry_run"] is True
     assert data["ecosystem"]["portfolio_publisher"]["category"] == "content_media"
     assert data["routing_rules"][0]["target"] == "portfolio_publisher"
+
+
+def test_portfolio_publisher_factory_registered():
+    from sahiixx_agency.core.engine import _SPECIALIZED_ADAPTERS
+
+    assert "portfolio_publisher" in _SPECIALIZED_ADAPTERS
+    assert "portfolio-publisher" in _SPECIALIZED_ADAPTERS
+
+
+def test_portfolio_publisher_factory_builds_adapter(tmp_path, monkeypatch):
+    from sahiixx_agency.core.engine import _make_portfolio_publisher
+
+    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+    config = AgencyConfig(data_dir=str(tmp_path))
+    task = AgencyTask(id="t1", intent="publish portfolio entry for postiz-app", payload={})
+    adapter, payload = _make_portfolio_publisher(config, None, None, task)
+    assert adapter.settings["registry_path"].endswith("registry.json")
+    assert adapter.settings["notify_channels"] == ["sse"]
+    assert payload["brief"] == "publish portfolio entry for postiz-app"

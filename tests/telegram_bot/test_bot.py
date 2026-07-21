@@ -275,10 +275,15 @@ def test_run_bot_requires_token(monkeypatch):
 def test_run_bot_uses_env_token(monkeypatch):
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "test-token")
 
-    async def fake_run(self):
+    async def fake_setup(self):
         return None
 
-    with patch.object(AgencyTelegramBot, "run", fake_run):
+    async def fake_shutdown(self):
+        return None
+
+    with patch.object(AgencyTelegramBot, "setup_engine", fake_setup), \
+         patch.object(AgencyTelegramBot, "shutdown_engine", fake_shutdown), \
+         patch("telegram.ext.Application.run_polling", return_value=None):
         # Should not raise
         run_bot()
 

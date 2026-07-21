@@ -92,10 +92,9 @@ class AgencyTelegramBot:
         application.add_handler(CallbackQueryHandler(self._callback_reject, pattern=r"^reject:"))
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self._handle_text))
 
-        try:
-            await application.run_polling(poll_interval=1, timeout=self.config.telegram.poll_timeout)
-        finally:
-            await self.shutdown_engine()
+        # run_polling manages its own event loop; do not await it.
+        application.run_polling(poll_interval=1, timeout=self.config.telegram.poll_timeout)
+        await self.shutdown_engine()
 
     async def _cmd_start(self, update: Any, _context: Any) -> None:
         try:
@@ -426,4 +425,34 @@ def run_bot(
         token = config.telegram.token
 
     bot = AgencyTelegramBot(token=token, engine=engine, config=config)
-    asyncio.run(bot.run())
+    asyncio.run(bot.setup_engine())
+    if not bot.config.telegram.allowed_chat_ids:
+        print(
+            "WARNING: telegram.allowed_chat_ids is empty — the bot will accept "
+            "commands from ANY chat. Set allowed_chat_ids in config/agency.yaml or "
+            "the TELEGRAM_ALLOWED_CHAT_IDS env var to restrict access.",
+            flush=True,
+        )
+    application = bot._build_app()
+    application.bot_data["bot"] = bot
+
+    from telegram.ext import CallbackQueryHandler, CommandHandler, MessageHandler, filters
+
+    application.add_handler(CommandHandler("start", bot._cmd_start))
+    application.add_handler(CommandHandler("help", bot._cmd_help))
+    application.add_handler(CommandHandler("dispatch", bot._cmd_dispatch))
+    application.add_handler(CommandHandler("tasks", bot._cmd_tasks))
+    application.add_handler(CommandHandler("task", bot._cmd_task))
+    application.add_handler(CommandHandler("approve", bot._cmd_approve))
+    application.add_handler(CommandHandler("reject", bot._cmd_reject))
+    application.add_handler(CommandHandler("approvals", bot._cmd_approvals))
+    application.add_handler(CommandHandler("stats", bot._cmd_stats))
+    application.add_handler(CommandHandler("registry", bot._cmd_registry))
+    application.add_handler(CallbackQueryHandler(bot._callback_approve, pattern=r"^approve:"))
+    application.add_handler(CallbackQueryHandler(bot._callback_reject, pattern=r"^reject:"))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, bot._handle_text))
+
+    try:
+        application.run_polling(poll_interval=1, timeout=config.telegram.poll_timeout)
+    finally:
+        asyncio.run(bot.shutdown_engine())

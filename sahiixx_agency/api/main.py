@@ -917,6 +917,31 @@ async def set_memory(
     return {"status": "ok", "key": key}
 
 
+# ---------- SAHIIX Project Data ----------
+
+
+@app.get("/sahiixx/projects")
+async def get_sahiixx_projects(
+    engine: Annotated[AgencyEngine, Depends(get_engine)],
+) -> dict[str, Any]:
+    """Return curated SAHIIX project data for portfolio/GTM consumption."""
+    profile = engine.memory.get("sahiixx:profile:projects", {})
+    portfolio = engine.memory.get("sahiixx:portfolio", {})
+    registry_stats = engine.registry.stats()
+
+    return {
+        "brand": portfolio.get("brand", "SAHIIX"),
+        "tagline": portfolio.get("tagline", ""),
+        "location": portfolio.get("location", ""),
+        "offer": portfolio.get("offer", ""),
+        "status": portfolio.get("status", ""),
+        "flagship": profile.get("flagship", []),
+        "selected_work": portfolio.get("selected_work", []),
+        "ecosystem": profile.get("forked_ecosystem", []),
+        "registry": registry_stats,
+    }
+
+
 # ---------- LLM ----------
 
 

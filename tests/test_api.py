@@ -250,7 +250,11 @@ def test_telegram_status_endpoint(client):
     assert "has_token" in data
 
 
-def test_telegram_webhook_without_token(client):
+def test_telegram_webhook_without_token(client, monkeypatch):
+    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+    # Rebuild the engine's telegram config so it reflects the missing token.
+    engine = client.app.dependency_overrides[get_engine]()
+    engine.config.telegram.token = None
     response = client.post("/telegram/webhook", json={"update_id": 1})
     assert response.status_code == 400
 
@@ -306,6 +310,31 @@ def test_chat_agent_mode_dispatches_planned_intent(client, monkeypatch):
     assert data["thread_id"].startswith("thread_")
     assert data["task_id"].startswith("task_")
     assert any("Agent dispatched task" in m["content"] for m in data["messages"] if m["role"] == "agency")
+
+
+def test_sahiixx_projects_endpoint(client):
+    engine = client.app.dependency_overrides[get_engine]()
+    engine.memory.set("sahiixx:profile:projects", {
+        "flagship": [{"name": "agency-agents", "description": "test"}],
+        "forked_ecosystem": [{"name": "openclaw"}],
+    })
+    engine.memory.set("sahiixx:portfolio", {
+        "brand": "SAHIIX",
+        "tagline": "AI-native OS",
+        "location": "Dubai",
+        "offer": "60-day pilots",
+        "status": "Available",
+        "selected_work": [{"name": "NEXUS"}],
+    })
+
+    response = client.get("/sahiixx/projects")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["brand"] == "SAHIIX"
+    assert data["tagline"] == "AI-native OS"
+    assert len(data["flagship"]) == 1
+    assert len(data["selected_work"]) == 1
+    assert "registry" in data
 
 
 def test_list_tasks_includes_module_alias(client):

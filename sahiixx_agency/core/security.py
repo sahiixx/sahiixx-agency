@@ -186,12 +186,24 @@ class NetworkPolicy:
         self.default_allow = default_allow
 
     def is_allowed(self, host: str) -> bool:
-        """Return True if the host is allowed for outbound connections."""
-        host = host.lower()
-        if any(host.endswith(domain.lower()) for domain in self.blocklist):
-            return False
+        """Proper domain boundary matching to prevent bypass.
+
+        A naive endswith() check lets 'evil.com' match 'notevil.com'
+        or 'myevil.com'. Require an exact match or a proper
+        '.domain' suffix so only true subdomains are caught.
+        """
+        host = host.lower().rstrip(".")
+        if self.blocklist:
+            for domain in self.blocklist:
+                domain = domain.lower().rstrip(".")
+                if host == domain or host.endswith("." + domain):
+                    return False
         if self.allowlist:
-            return any(host.endswith(domain.lower()) for domain in self.allowlist)
+            for domain in self.allowlist:
+                domain = domain.lower().rstrip(".")
+                if host == domain or host.endswith("." + domain):
+                    return True
+            return False
         return self.default_allow
 
     @property

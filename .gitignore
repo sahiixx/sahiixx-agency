@@ -96,3 +96,6 @@ jarvis_*.png
 jovi_*.png
 
 .worktrees/
+
+# temp security-test artifacts
+tmp_test_security/

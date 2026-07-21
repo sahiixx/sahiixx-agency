@@ -128,6 +128,16 @@ class AgencyMemory:
                 return [json.loads(r[0]) for r in rows]
         return list(self._data.get("tasks", {}).values())
 
+    def event_count(self) -> int:
+        """Return total event count without loading all events into memory."""
+        if self.backend == "sqlite":
+            with sqlite3.connect(self.db_path) as conn:
+                count: int = conn.execute("SELECT COUNT(*) FROM events").fetchone()[0]
+                return count
+        # in-memory backend: sum per-topic lists
+        events = self._data.get("events", [])
+        return len(events)
+
     def recent_events(self, topic: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
         if self.backend == "sqlite":
             with sqlite3.connect(self.db_path) as conn:

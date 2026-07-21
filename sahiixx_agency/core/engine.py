@@ -1283,7 +1283,7 @@ class AgencyEngine:
         return {
             "config": self.config.model_dump(mode="json"),
             "registry": self.registry.stats(),
-            "memory_events": len(self.memory.recent_events(limit=999999)),
+            "memory_events": self.memory.event_count(),
             "metrics": self.metrics.summary(),
             "health": self.metrics.overall_health().value,
             "workflows": {
@@ -1308,7 +1308,13 @@ class AgencyEngine:
         queries: list[str] = []
         week_ago = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
 
-        async with __import__("httpx").AsyncClient(timeout=30) as client:
+        try:
+            import httpx
+        except ImportError as err:
+            raise RuntimeError(
+                "httpx is required for intel scout: pip install httpx"
+            ) from err
+        async with httpx.AsyncClient(timeout=30) as client:
             if report_type in ("trending", "velocity"):
                 q = f"created:>{week_ago} stars:>{min_stars}"
                 if languages:

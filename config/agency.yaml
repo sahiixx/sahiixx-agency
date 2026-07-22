@@ -684,9 +684,9 @@ ecosystem:
     role: "Edge AI worker — Workers AI + OmniRoute gateway with chat_completion, list_models, workflow_run tools"
     bus_channel: "mcp.*"
     protocol: mcp
-    mcp_endpoint: "http://localhost:8787/mcp"
+    mcp_endpoint: "https://f.sahiixofficial.workers.dev/mcp"
     adapter_config:
-      mcp_endpoint: "http://localhost:8787/mcp"
+      mcp_endpoint: "https://f.sahiixofficial.workers.dev/mcp"
     priority: 1
     tags: [mcp, ai, edge, workers-ai, omniroute, chat, models, workflow]
 

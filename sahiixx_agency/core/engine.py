@@ -57,6 +57,23 @@ from .scheduler import WorkflowScheduler
 from .security import AuditLogger, InputSanitizer, NetworkPolicy, SecretsManager
 from .workflows import WorkflowEngine
 
+# Temporal integration (Phase 3)
+try:
+    from ..temporal import TemporalManager, TemporalConfig, get_temporal_manager
+    TEMPORAL_AVAILABLE = True
+except ImportError:
+    TEMPORAL_AVAILABLE = False
+    TemporalManager = None
+    TemporalConfig = None
+    get_temporal_manager = None
+
+# Supervisor integration (Phase 1)
+try:
+    from ..supervisor import run_supervisor, SUPERVISOR_AVAILABLE
+except ImportError:
+    SUPERVISOR_AVAILABLE = False
+    run_supervisor = None
+
 
 # ─── Specialized adapter registry ──────────────────────────────
 # Maps a normalized module_id to a factory that builds the adapter and returns
@@ -343,6 +360,37 @@ def _make_chrome_devtools_mcp(config, network_policy, audit_logger, task):
     return adapter, payload
 
 
+def _make_f_worker_ai(config, network_policy, audit_logger, task):
+    """Remote MCP server (f worker) reached over HTTP Streamable MCP.
+
+    Reads ``mcp_endpoint`` from the ecosystem entry in agency.yaml and routes the
+    task's intent to the named MCP tool. The task payload should carry:
+      - ``tool``: the MCP tool name (chat_completion | list_models | workflow_run)
+      - ``tool_args``: arguments passed to that tool
+    If no ``tool`` is given, we default to ``chat_completion`` using the task intent
+    as a user message (so a plain "ask the AI X" intent works end-to-end).
+    """
+    from sahiixx_agency.adapters.mcp.http_client import HttpMcpAdapter
+
+    eco = config.ecosystem.get("f-worker-ai", {})
+    mcp_endpoint = eco.get("mcp_endpoint") or os.environ.get("F_WORKER_MCP_ENDPOINT", "http://localhost:8787/mcp")
+    adapter = HttpMcpAdapter(
+        network_policy=network_policy,
+        audit_logger=audit_logger,
+    )
+    payload = dict(task.payload)
+    payload.setdefault("adapter_config", {}).setdefault("mcp_endpoint", mcp_endpoint)
+    if not payload.get("tool"):
+        # Default: treat the intent as a chat prompt.
+        payload.setdefault("tool", "chat_completion")
+        payload.setdefault("tool_args", {
+            "model": "auto/best-fast",
+            "messages": [{"role": "user", "content": task.intent}],
+        })
+    return adapter, payload
+
+
+
 def _make_web_intel(config, network_policy, audit_logger, task):
     from sahiixx_agency.adapters.web_intel import WebIntelAdapter
 
@@ -446,6 +494,7 @@ _SPECIALIZED_ADAPTERS: dict[
     "rag_anything": _make_agentic_framework_adapter("rag_anything"),
     "hermes": _make_agentic_framework_adapter("hermes"),
     "chrome_devtools_mcp": _make_chrome_devtools_mcp,
+    "f-worker-ai": _make_f_worker_ai,
     "discovery": _make_discovery,
     "intel_scout": _make_discovery,
     "lead_machine": _make_lead_machine,
@@ -507,6 +556,11 @@ class AgencyEngine:
             dependency_scanner=self.dependency_scanner,
             audit_logger=self.audit,
         )
+        
+        # Temporal integration (Phase 3)
+        self._temporal_manager = None
+        self._temporal_worker_task = None
+        
         self.router.engine = self
         self._running = False
         self._worker_task: asyncio.Task[Any] | None = None
@@ -514,6 +568,10 @@ class AgencyEngine:
         self._tasks: dict[str, AgencyTask] = {}
         self._load_tasks()
         self._wire_events()
+
+        # Temporal integration
+        self._temporal_manager: TemporalManager | None = None
+        self._temporal_worker_task: asyncio.Task[Any] | None = None
 
     def _wire_events(self) -> None:
         """Wire bus events to notifications and metrics."""
@@ -606,6 +664,10 @@ class AgencyEngine:
         self._worker_task = asyncio.create_task(self._worker_loop())
         await self.scheduler.start()
 
+        # Initialize Temporal if available and configured
+        if TEMPORAL_AVAILABLE and self.config.temporal.get("enabled", False):
+            await self._init_temporal()
+
     async def stop_worker(self) -> None:
         if not self._running:
             return
@@ -617,6 +679,73 @@ class AgencyEngine:
                 await self._worker_task
             self._worker_task = None
 
+        # Stop Temporal worker
+        if self._temporal_worker_task is not None:
+            self._temporal_worker_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._temporal_worker_task
+            self._temporal_worker_task = None
+
+        if self._temporal_manager:
+            await self._temporal_manager.stop_worker()
+            self._temporal_manager = None
+
+    async def _init_temporal(self) -> None:
+        """Initialize Temporal client and worker."""
+        try:
+            temporal_config = self.config.get("temporal", {})
+            self._temporal_manager = get_temporal_manager(
+                TemporalConfig(
+                    host=temporal_config.get("host", "localhost"),
+                    port=temporal_config.get("port", 7233),
+                    namespace=temporal_config.get("namespace", "default"),
+                    task_queue=temporal_config.get("task_queue", "opa-tasks"),
+                )
+            )
+            await self._temporal_manager.connect()
+
+            # Import workflows and activities
+            from ..temporal.workflows import (
+                TaskExecutionWorkflow,
+                MultiStepWorkflow,
+                BatchTaskWorkflow,
+            )
+            from ..temporal.activities import (
+                clone_repo_activity,
+                run_dependency_scan_activity,
+                execute_adapter_activity,
+                record_task_result_activity,
+                send_notification_activity,
+                set_dependencies,
+            )
+
+            # Set activity dependencies
+            set_dependencies(
+                engine=self,
+                registry=self.registry,
+                runner=self.runner,
+                network_policy=self.network_policy,
+                audit=self.audit,
+            )
+
+            # Start Temporal worker
+            self._temporal_worker_task = asyncio.create_task(
+                self._temporal_manager.start_worker(
+                    workflows=[TaskExecutionWorkflow, MultiStepWorkflow, BatchTaskWorkflow],
+                    activities=[
+                        clone_repo_activity,
+                        run_dependency_scan_activity,
+                        execute_adapter_activity,
+                        record_task_result_activity,
+                        send_notification_activity,
+                    ],
+                )
+            )
+            print("Temporal worker started")
+        except Exception as e:
+            print(f"Failed to initialize Temporal: {e}")
+            self._temporal_manager = None
+
     async def _worker_loop(self) -> None:
         while self._running:
             try:
@@ -625,7 +754,11 @@ class AgencyEngine:
                 continue
             except asyncio.CancelledError:
                 break
-            await self._execute_task(task)
+            # Use supervisor if enabled
+            if SUPERVISOR_AVAILABLE and self.config.supervisor.enabled:
+                await self._execute_task_with_supervisor(task)
+            else:
+                await self._execute_task(task)
 
     def get_task(self, task_id: str) -> AgencyTask | None:
         return self._tasks.get(task_id)
@@ -1277,6 +1410,267 @@ class AgencyEngine:
             "module": best.name,
             "execution": run_result,
         }
+
+    async def _execute_task_with_supervisor(self, task: AgencyTask) -> None:
+        """Execute a task using the LangGraph supervisor workflow."""
+        if not SUPERVISOR_AVAILABLE:
+            # Fall back to regular execution
+            await self._execute_task(task)
+            return
+
+        if not self.config.supervisor.enabled:
+            await self._execute_task(task)
+            return
+
+        # Check if this task should use supervisor
+        # For now, use supervisor for all tasks when enabled
+        risk_level = self._risk_level_for_task(task)
+        if self._requires_approval(risk_level) and not self.approval_manager.is_approved(task.id):
+            req = self.approval_manager.request_approval(
+                task,
+                risk_level,
+                f"Risky execution: {task.intent}",
+            )
+            task.status = TaskStatus.PENDING
+            self.memory.log_event("task.awaiting_approval", {"task_id": task.id, "risk_level": risk_level.value})
+            await self.task_logger.info(
+                task.id,
+                "Approval requested",
+                actor="approval",
+                **{"approval_id": req.id, "risk_level": risk_level.value, "reason": req.reason},
+            )
+            return
+
+        task.status = TaskStatus.RUNNING
+        task.started_at = task.started_at or datetime.now(timezone.utc)
+        self.memory.log_event("task.running", {"task_id": task.id})
+        await self.task_logger.info(
+            task.id,
+            "Task execution started (supervisor)",
+            actor="engine",
+            **{
+                "module_id": task.module_id,
+                "category": task.category.value if task.category else None,
+            },
+        )
+
+        try:
+            with self.metrics.timer("task_execution_latency_seconds", labels={"module": task.module_id or "supervisor"}):
+                # Run supervisor workflow
+                from ..supervisor.graph import run_supervisor
+                result = await run_supervisor(
+                    engine=self,
+                    intent=task.intent,
+                    payload=task.payload,
+                    thread_id=task.payload.get("thread_id"),
+                    max_steps=self.config.supervisor.max_handoffs,
+                )
+
+                task.result = {
+                    "supervisor": True,
+                    "messages": result.get("messages", []),
+                    "result": result.get("result"),
+                    "error": result.get("error"),
+                    "handoff_history": result.get("handoff_history", []),
+                    "final_agent": result.get("final_agent"),
+                }
+
+                if result.get("error"):
+                    task.status = TaskStatus.FAILED
+                    task.error = result["error"]
+                    self.metrics.increment("tasks_total", labels={"status": "failed"})
+                    self.audit.log("task.failed", "worker", task.id, {"error": result["error"]})
+                    await self.task_logger.error(
+                        task.id,
+                        "Task failed (supervisor)",
+                        actor="engine",
+                        **{"error": result["error"]},
+                    )
+                else:
+                    task.status = TaskStatus.COMPLETED
+                    task.completed_at = datetime.now(timezone.utc)
+                    self.memory.log_event("task.completed", {"task_id": task.id})
+                    self.audit.log("task.completed", "worker", task.id, {"supervisor": True})
+                    await self.task_logger.info(
+                        task.id,
+                        "Task completed (supervisor)",
+                        actor="engine",
+                        **{"final_agent": result.get("final_agent")},
+                    )
+
+        except Exception as exc:
+            task.status = TaskStatus.FAILED
+            task.error = str(exc)
+            self.memory.log_event("task.failed", {"task_id": task.id, "error": str(exc)})
+            self.metrics.increment("tasks_total", labels={"status": "failed"})
+            self.audit.log("task.failed", "worker", task.id, {"error": str(exc)})
+            await self.task_logger.error(
+                task.id,
+                "Task failed (supervisor)",
+                actor="engine",
+                **{"error": str(exc)},
+            )
+        finally:
+            self._persist_task(task)
+            self._append_chat_result(task)
+
+    async def _execute_task_with_temporal(self, task: AgencyTask) -> None:
+        """Execute a task using Temporal durable workflow."""
+        if not TEMPORAL_AVAILABLE:
+            # Fall back to regular execution
+            await self._execute_task(task)
+            return
+
+        if self._temporal_manager is None:
+            # Temporal not initialized, fall back
+            await self._execute_task(task)
+            return
+
+        # Check if this task should use temporal
+        # For now, use temporal for tasks with module_id (long-running)
+        if not task.module_id:
+            await self._execute_task(task)
+            return
+
+        # Check approval for risky tasks
+        risk_level = self._risk_level_for_task(task)
+        if self._requires_approval(risk_level) and not self.approval_manager.is_approved(task.id):
+            req = self.approval_manager.request_approval(
+                task,
+                risk_level,
+                f"Risky execution: {task.intent}",
+            )
+            task.status = TaskStatus.PENDING
+            self.memory.log_event("task.awaiting_approval", {"task_id": task.id, "risk_level": risk_level.value})
+            await self.task_logger.info(
+                task.id,
+                "Approval requested",
+                actor="approval",
+                **{"approval_id": req.id, "risk_level": risk_level.value, "reason": req.reason},
+            )
+            return
+
+        task.status = TaskStatus.RUNNING
+        task.started_at = task.started_at or datetime.now(timezone.utc)
+        self.memory.log_event("task.running", {"task_id": task.id})
+        await self.task_logger.info(
+            task.id,
+            "Task execution started (temporal)",
+            actor="engine",
+            **{
+                "module_id": task.module_id,
+                "category": task.category.value if task.category else None,
+            },
+        )
+
+        try:
+            with self.metrics.timer("task_execution_latency_seconds", labels={"module": task.module_id or "temporal"}):
+                # Execute via Temporal workflow
+                from ..temporal.workflows import TaskExecutionWorkflow
+                
+                result = await self._temporal_manager.execute_workflow(
+                    TaskExecutionWorkflow,
+                    args=[task.model_dump(mode="json")],
+                    workflow_id=f"task-{task.id}",
+                    timeout=timedelta(hours=1),
+                )
+
+                task.result = result
+
+                if result.get("status") == "completed":
+                    task.status = TaskStatus.COMPLETED
+                    task.completed_at = datetime.now(timezone.utc)
+                    self.memory.log_event("task.completed", {"task_id": task.id})
+                    self.audit.log("task.completed", "worker", task.id, {"temporal": True})
+                    await self.task_logger.info(
+                        task.id,
+                        "Task completed (temporal)",
+                        actor="engine",
+                        **{"final_agent": result.get("final_agent")},
+                    )
+                else:
+                    task.status = TaskStatus.FAILED
+                    task.error = result.get("error", "Unknown error")
+                    self.metrics.increment("tasks_total", labels={"status": "failed"})
+                    self.audit.log("task.failed", "worker", task.id, {"error": task.error})
+                    await self.task_logger.error(
+                        task.id,
+                        "Task failed (temporal)",
+                        actor="engine",
+                        **{"error": task.error},
+                    )
+
+        except Exception as exc:
+            task.status = TaskStatus.FAILED
+            task.error = str(exc)
+            self.memory.log_event("task.failed", {"task_id": task.id, "error": str(exc)})
+            self.metrics.increment("tasks_total", labels={"status": "failed"})
+            self.audit.log("task.failed", "worker", task.id, {"error": str(exc)})
+            await self.task_logger.error(
+                task.id,
+                "Task failed (temporal)",
+                actor="engine",
+                **{"error": str(exc)},
+            )
+        finally:
+            self._persist_task(task)
+            self._append_chat_result(task)
+
+    async def dispatch_with_temporal(
+        self,
+        intent: str,
+        payload: dict[str, Any] | None = None,
+        tenant_id: str | None = None,
+        project_id: str | None = None,
+    ) -> AgencyTask:
+        """Dispatch a task through the Temporal workflow."""
+        if self.config.security.sanitize_input:
+            intent = InputSanitizer.sanitize_intent(intent)
+            payload = InputSanitizer.sanitize_payload(payload or {})
+        task = await self.router.route(intent, payload)
+        task.tenant_id = tenant_id
+        task.project_id = project_id
+        self._tasks[task.id] = task
+        self.memory.log_event("task.created", {"task_id": task.id, "intent": intent})
+        await self.task_logger.info(
+            task.id,
+            "Task dispatched (temporal)",
+            actor="engine",
+            **{
+                "intent": intent,
+                "module_id": task.module_id,
+                "category": task.category.value if task.category else None,
+            },
+        )
+        self._persist_task(task)
+        self.audit.log(
+            "task.dispatched",
+            "operator",
+            task.id,
+            {"intent": intent, "module_id": task.module_id, "category": task.category.value if task.category else None},
+        )
+        await self._task_queue.put(task)
+        return task
+        self.memory.log_event("task.created", {"task_id": task.id, "intent": intent})
+        await self.task_logger.info(
+            task.id,
+            "Task dispatched (supervisor)",
+            actor="engine",
+            **{
+                "intent": intent,
+                "module_id": task.module_id,
+                "category": task.category.value if task.category else None,
+            },
+        )
+        self._persist_task(task)
+        self.audit.log(
+            "task.dispatched",
+            "operator",
+            task.id,
+            {"intent": intent, "module_id": task.module_id, "category": task.category.value if task.category else None},
+        )
+        await self._task_queue.put(task)
+        return task
 
     def stats(self) -> dict[str, Any]:
         """Return combined agency stats."""

@@ -67,7 +67,7 @@ telegram:
   enabled: false
   token: null  # Set via TELEGRAM_BOT_TOKEN env var
   webhook_url: null  # Optional: https://api.example.com/telegram/webhook
-  allowed_chat_ids: []  # Restrict to specific Telegram chat IDs; empty = allow all
+  allowed_chat_ids: [8252725134]  # Restrict to specific Telegram chat IDs; empty = allow all
   poll_timeout: 30
   notify_on_approval: true
 
@@ -78,9 +78,13 @@ llm_api_key: null
 # ─── LLM Provider Settings ────────────────────────────────────
 llm:
   enabled: true
-  default_provider: "openai"
-  default_model: "gpt-4o-mini"
+  default_provider: "generic"
+  default_model: "auto/best-fast"
   providers:
+    generic:
+      api_key: "sk-7c685c0b83f344e5-7a452a-15e95c11"
+      base_url: "http://127.0.0.1:20128/v1"
+      default_model: "auto/best-fast"
     openai:
       api_key: null      # Set via OPENAI_API_KEY env var
       base_url: "https://api.openai.com/v1"
@@ -96,6 +100,8 @@ llm:
     ollama:
       base_url: "http://localhost:11434"
       default_model: "llama3.2:3b"
+  # Only use generic (Omniroute) as fallback target — remove ollama from chain
+  fallback_providers: ["generic"]
   pricing:
     gpt-4o:
       input_per_1m_tokens: 2.50
@@ -151,6 +157,18 @@ ecosystem:
     bus_channel: "publish.*"
     protocol: internal
     priority: 1
+  # ── AI / Model Gateway ──
+  f-worker-ai:
+    repo: f
+    url: https://github.com/sahiixx/f
+    role: "Cloudflare Workers AI gateway — Workers AI models + OmniRoute fallback, OpenAI-compatible API + MCP server"
+    capabilities: [chat-completion, model-listing, workflow-run, mcp-server]
+    category: model_gateway
+    bus_channel: "ai.*"
+    protocol: mcp+rest
+    priority: 1
+    tags: [ai, workers-ai, omniroute, mcp, edge, chat-completion]
+
   # ── Lead Machine (E2E Dubai RE pipeline) ──
   lead_machine:
     repo: sahiixx-agency
@@ -658,6 +676,20 @@ ecosystem:
     priority: 2
     tags: [framework, agent, personal-ai, adaptive, hermes]
 
+  # ── MCP Servers ──
+  f-worker-ai:
+    repo: f
+    owner: sahiixx
+    url: https://github.com/sahiixx/f
+    role: "Edge AI worker — Workers AI + OmniRoute gateway with chat_completion, list_models, workflow_run tools"
+    bus_channel: "mcp.*"
+    protocol: mcp
+    mcp_endpoint: "http://localhost:8787/mcp"
+    adapter_config:
+      mcp_endpoint: "http://localhost:8787/mcp"
+    priority: 1
+    tags: [mcp, ai, edge, workers-ai, omniroute, chat, models, workflow]
+
   chrome_devtools_mcp:
     repo: chrome-devtools-mcp
     owner: modelcontextprotocol
@@ -672,7 +704,11 @@ ecosystem:
 routing_rules:
   - pattern: 'publish portfolio|portfolio entry|add .* to (the )?portfolio'
     target: portfolio_publisher
+  - pattern: 'chat|completion|chat completion|ai model|workers ai|omniroute|list models|ai chat|model list'
+    target: f-worker-ai
   - pattern: 'github\.com/sahiixx/sahiixx|sahiixx profile|profile README|flagship projects.*registry|missing from the agency registry'
+    target: web_intel
+  - pattern: 'fetch https?://|analyze.*(profile|readme|url|page)|web intel|web fetch'
     target: web_intel
   - pattern: "trending repo|trending github|trending project|discover.*(repo|project|github)|find.*trending|scout.*(repo|github)|hidden gem|new github project|intel scout|what.*trending.*(repo|github)"
     target: discovery
@@ -689,7 +725,7 @@ routing_rules:
     target: friday
   - pattern: "letta|persistent.memory|stateful.agent|local.agent|long[- ]term memory|spin up.*agent.*memory|agent.*long[- ]term memory|stateful agent|memory agent"
     target: letta_code
-  - pattern: "resume|candidate|hire|hiring|evaluate.profile|screen|recruit"
+  - pattern: 'resume\b|candidate\b|hiring\b|evaluate.profile|screen\b|recruit\b'
     target: hiring_agent
   - pattern: "job|career|apply|linkedin|cv|resume"
     target: career_ops

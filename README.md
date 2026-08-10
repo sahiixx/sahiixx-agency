@@ -1,144 +1,136 @@
-# One Person Agency (OPA) 🤖
+# sahiixx-agency
+
+![Python](https://img.shields.io/badge/python-3.11+-blue) ![Docker](https://img.shields.io/badge/docker-ready-blue) ![Agentic](https://img.shields.io/badge/agentic-harness-purple)
 
 **Unified AI orchestration for all 170+ repos.**
 
-> **👤 Profile**: [sahiix Portfolio](https://sahiix-portfolio.pages.dev/) | GitHub: [@sahiixx](https://github.com/sahiixx)
+## Table of Contents
 
-One Person Agency is a Python-based framework that auto-discovers your GitHub repositories, registers them as agency modules, routes tasks to the right module, and exposes everything through a unified CLI, REST API, and MCP server.
+- [Overview](#overview)
+- [Quick Start](#quick-start)
+- [Agentic Architecture](#agentic-architecture)
+- [Model Routing](#model-routing)
+- [Project Layout](#project-layout)
+- [Development](#development)
+- [Related Repositories](#related-repositories)
 
-## Features
+## Overview
 
-- **Auto-Discovery**: Fetches all public repos and classifies them by category
-- **Smart Routing**: Natural language tasks are routed to the best matching repo/module
-- **GitHub Intelligence Scout**: Real-time trending, velocity, and hidden-gems reports
-- **Unified CLI**: Rich terminal interface for managing the entire agency
-- **FastAPI Server**: REST API for all operations
-- **MCP Server**: Expose agency as Model Context Protocol tools
-- **React Dashboard**: Interactive visualization of your repo universe
+**Unified AI orchestration for all 170+ repos.**
+
+| | |
+|---|---|
+| **Stack** | python |
+| **Frameworks** | docker, fastapi, pydantic |
+| **Tests** | yes |
+| **Commits** | 2 |
+| **Last activity** | 2026-08-10 |
+| **Visibility** | public |
 
 ## Quick Start
 
+### Install
+
 ```bash
-# Install
-pip install -e .
-
-# Sync all your repos
-opa sync
-
-# View registry
-opa registry
-
-# Dispatch a task
-opa dispatch "run voice assistant"
-
-# Dispatch without waiting
-opa dispatch "run voice assistant" --no-wait
-
-# Check task status
-opa task-status <task-id>
-
-# Run intel scout
-opa intel --type trending
-
-# Start the general agency Telegram bot (tasks + approvals)
-opa telegram-bot --token <BOT_TOKEN>
-
-# Start the Career-Ops Telegram bot
-opa telegram-career-bot --token <BOT_TOKEN>
-
-# Start API server
-opa serve
-
-# Start MCP server
-python -m sahiixx_agency.mcp_server.main
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt   # or: pip install -e .
 ```
 
-## Architecture
+### Run
 
-```
-sahiixx-agency/
-├── sahiixx_agency/        # Python package
-│   ├── core/              # engine, bus, memory, registry, router, runner, security
-│   ├── adapters/          # category + specialized integration layers
-│   ├── cli/               # Typer + Rich CLI (entry: `opa`)
-│   ├── api/               # FastAPI server
-│   ├── mcp_server/        # MCP server (stdio / SSE)
-│   ├── discovery/         # GitHub repo auto-discovery
-│   └── telegram/         # Telegram bot
-├── dashboard/             # React 19 + Vite + D3 visualization app (separate npm project)
-├── config/                # agency.yaml config
-├── data/                  # registry.json, repos/, task-logs (runtime, gitignored)
-├── tests/                 # pytest suite
-└── scripts/               # setup, sync, deploy, smoke scripts
+```bash
+# Entry point not auto-detected; inspect the layout below.
 ```
 
-## CLI Commands
+## Agentic Architecture
 
-| Command | Description |
+This repository participates in the [sahiixx agentic harness](https://github.com/sahiixx/agentic-harness) — a shared
+contract for how agents plan, act, verify, and recover across all repos in this account.
+
+**Signal strength:** agentic density score `1197` (references to agent,
+tool-call, LLM, RAG and orchestration primitives across the source tree).
+
+### Patterns in play
+
+| Pattern | Role here |
 |---|---|
-| `opa sync` | Discover GitHub repos into the registry |
-| `opa registry` | List/filter registry modules |
-| `opa dispatch "<intent>"` | Dispatch an intent + payload through the engine |
-| `opa do <intent words>` | Shorthand for `dispatch` (joins argv) |
-| `opa exec <module>` | Clone + install + run a module directly |
-| `opa task-status <id>` / `opa task-list` | Inspect dispatched tasks |
-| `opa stats` | Agency summary panel |
-| `opa intel --type <trending\|velocity\|hidden_gems>` | GitHub intelligence scout |
-| `opa serve` | Start the FastAPI server (uvicorn) |
-| `opa telegram-bot` / `opa telegram-career-bot` | Start the Telegram bots |
-| `opa llm-providers` / `opa llm-chat` / `opa llm-costs` | LLM sub-app |
-| `opa workflow-list` / `workflow-create` / `workflow-run` / `workflow-instances` / `workflow-resume` | Workflow engine |
-| `opa notify-send` | Notifications (sse/telegram/email/webhook) |
-| `opa costs` / `opa metrics` / `opa health` | Observability |
-| `opa marketplace-list` / `install` / `enable` / `disable` / `rate` | Module marketplace |
-| `python -m sahiixx_agency.mcp_server.main` | Start the MCP server |
+| **Prompt Chaining** | Deterministic multi-step pipelines where subtasks are known upfront |
+| **Routing** | Classify input, dispatch to the specialist path (cheap model for easy work) |
+| **Parallelization** | Independent subtasks fan out; results aggregated programmatically |
+| **Orchestrator–Workers** | Central planner decomposes dynamically when subtasks can't be predicted |
+| **Evaluator–Optimizer** | Generator/judge split with explicit rubric; bounded retry |
+| **ReAct** | Interleaved reason → act → observe for adaptive tool use |
+| **Reflection** | Self-critique before emitting a final answer |
 
-## API Endpoints
+> Escalation rule: start with the simplest pattern that solves the problem. Add
+> Reflection only when verification fails, Planning only when dependencies emerge,
+> Multi-Agent only when work exceeds a single role or context window.
 
-| Endpoint | Method | Description |
+### Reliability envelope
+
+- **Bounded execution** — every loop has a max-iteration and wall-clock ceiling.
+- **Tool sandboxing** — filesystem/network side effects are isolated and reversible.
+- **Guardrail layering** — validate at input, mid-loop, and output.
+- **Context engineering** — select, compress, isolate; never let raw history grow unbounded.
+- **Self-verification** — check intermediate output against constraints before continuing.
+
+## Model Routing
+
+Agent work in this repo routes through Azure AI Foundry. See [`AGENTS.md`](./AGENTS.md)
+for the full contract.
+
+| Purpose | Deployment | Endpoint |
 |---|---|---|
-| `/` | GET | Health check |
-| `/stats` | GET | Agency statistics |
-| `/registry` | GET | List all modules |
-| `/registry/{id}` | GET | Get module details |
-| `/registry/sync` | POST | Sync repos from GitHub |
-| `/tasks` | POST | Create and dispatch a task (returns pending) |
-| `/tasks` | GET | List recent tasks |
-| `/tasks/{id}` | GET | Get task status and result |
-| `/tasks/{id}/approve` | POST | Approve a high-risk task |
-| `/intel` | GET | Run intelligence scout |
-| `/telegram/status` | GET | Telegram bot config status |
-| `/telegram/webhook` | POST | Receive Telegram webhook updates |
-| `/dashboard/graph-data` | GET | Graph data for dashboard |
+| Default / general | `gpt-5.6-sol` | `/openai/v1/chat/completions` |
+| Deep reasoning | `claude-opus-5` | `/openai/v1/responses` **only** |
+| Embeddings | `text-embedding-3-small` | `/openai/v1/embeddings` |
 
-## MCP Tools
+```bash
+export AZURE_FOUNDRY_API_KEY=...        # never commit this
+export AZURE_FOUNDRY_BASE_URL=https://<resource>.openai.azure.com/openai/v1
+```
 
-- `list_modules` — List agency modules (optionally filtered by category)
-- `dispatch_task` — Dispatch a task and run the worker
-- `run_intel_scout` — GitHub intelligence (trending/velocity/hidden_gems)
-- `agency_stats` — Get statistics
-- `sync_registry` — Sync repos from GitHub
-- `list_workflows` / `run_workflow` — Workflow engine access
-- `send_notification` — sse/telegram/email/webhook
-- `get_metrics` / `get_health` — Observability
+> **Gotcha:** Claude deployments on Azure return `404 api_not_supported` on
+> `/chat/completions`. They answer **only** via the Responses API.
 
-## Environment Variables
+## Project Layout
 
-| Variable | Description |
-| --- | --- |
-| `GITHUB_TOKEN` | GitHub personal access token (required for `opa sync`) |
-| `GITHUB_USER` | GitHub username (default: sahiixx) |
-| `OPA_CONFIG` | Path to agency.yaml (default: config/agency.yaml) |
-| `OPA_API_KEY` | If set, all mutating API endpoints require header `X-OPA-API-Key` |
-| `OPA_CORS_ORIGINS` | Comma-separated allowed CORS origins (default: local dashboard dev servers) |
-| `MCP_TRANSPORT` | `stdio` (default) or `sse` |
-| `MCP_HOST` / `MCP_PORT` | SSE bind host/port (default 127.0.0.1:8081) |
-| `TELEGRAM_BOT_TOKEN` | Telegram bot token (also accepted in agency.yaml) |
-| `TELEGRAM_ALLOWED_CHAT_IDS` | Comma-separated allowed chat IDs (empty = allow all — not recommended) |
-| `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `OPENROUTER_API_KEY` | LLM provider keys (all optional) |
+```
+AGENTS.md
+CLAUDE.md
+Dockerfile
+DubaiProp_AI_Master_Project_Plan.md
+LICENSE
+Makefile
+Procfile
+README.md
+config/
+conftest.py
+dashboard/
+data/
+data_test/
+docker-compose.yml
+```
 
-See `.env.example` for the full template.
+## Development
 
-## License
+```bash
+# lint / format before committing
+ruff check . && ruff format .
 
-MIT
+# run the CI check locally
+gh workflow run hermes-azure-check.yml
+```
+
+Secrets live in environment variables and CI secrets — never in tracked files.
+
+## Related Repositories
+
+Part of a 84-repository workspace sharing one agentic contract:
+
+- **[agentic-harness](https://github.com/sahiixx/agentic-harness)** — patterns, contracts, and reference implementations
+- `AGENTS.md` in every repo pins identical model routing
+
+---
+
+<sub>README maintained by the agentic harness · last regenerated 2026-08-10</sub>

@@ -1,1 +1,277 @@
-# see branch for full file — placeholder will be replaced
+# One Person Agency Configuration
+github_username: "sahiixx"
+github_token: null  # Set via GITHUB_TOKEN env var
+
+api_host: "0.0.0.0"
+api_port: 8082
+dashboard_port: 3000
+mcp_port: 8081
+
+memory_backend: "sqlite"
+data_dir: "./data"
+
+auto_sync_interval_minutes: 60
+log_level: "INFO"
+
+discovery:
+  enabled: true
+  min_stars: 50
+  languages: ["python", "typescript", "javascript", "go", "rust"]
+  subreddits: ["MachineLearning", "webdev", "LocalLLaMA", "selfhosted"]
+  auto_clone: false
+  schedule: "0 6 * * *"
+
+approval:
+  auto_approve_low_risk: true
+  require_approval_for: ["high", "critical"]
+
+workflows_dir: "./data/workflows"
+metrics_retention_hours: 24
+
+notifications:
+  telegram:
+    enabled: false
+    token: null
+    chat_id: null
+  email:
+    enabled: false
+    smtp_host: null
+    smtp_port: 587
+    smtp_user: null
+    smtp_password: null
+    default_recipient: null
+  webhook:
+    enabled: false
+    url: null
+
+portfolio_publisher:
+  enabled: true
+  dry_run: true
+  repo_path: "C:/Users/sahii/Projects/portfolio"
+  ignore: []
+
+security:
+  audit_enabled: true
+  sanitize_input: true
+  dependency_scan_enabled: false
+  network_allowlist: []
+  network_blocklist: []
+
+telegram:
+  enabled: false
+  token: null
+  webhook_url: null
+  allowed_chat_ids: [8252725134]
+  poll_timeout: 30
+  notify_on_approval: true
+
+default_llm: null
+llm_api_key: null
+
+llm:
+  enabled: true
+  default_provider: "generic"
+  default_model: "auto/best-fast"
+  providers:
+    generic:
+      api_key: null  # Set via env / secrets
+      base_url: "http://127.0.0.1:20128/v1"
+      default_model: "auto/best-fast"
+    openai:
+      api_key: null
+      base_url: "https://api.openai.com/v1"
+      default_model: "gpt-4o-mini"
+    anthropic:
+      api_key: null
+      base_url: "https://api.anthropic.com/v1"
+      default_model: "claude-3-5-sonnet-20241022"
+    openrouter:
+      api_key: null
+      base_url: "https://openrouter.ai/api/v1"
+      default_model: "openai/gpt-4o-mini"
+    ollama:
+      base_url: "http://localhost:11434"
+      default_model: "llama3.2:3b"
+  fallback_providers: ["generic"]
+  pricing:
+    gpt-4o:
+      input_per_1m_tokens: 2.50
+      output_per_1m_tokens: 10.00
+    gpt-4o-mini:
+      input_per_1m_tokens: 0.15
+      output_per_1m_tokens: 0.60
+
+ecosystem:
+  bus:
+    repo: sahiixx-bus
+    url: https://github.com/sahiixx/sahiixx-bus
+    role: "Central pub/sub message bus and MCP gateway"
+    bus_channel: "bus.*"
+    protocol: internal
+    priority: 1
+
+  agency:
+    repo: sahiixx-agency
+    url: https://github.com/sahiixx/sahiixx-agency
+    role: "OPA orchestrator — auto-discovery and smart routing"
+    bus_channel: "agency.*"
+    protocol: mcp+rest
+    priority: 1
+
+  discovery:
+    repo: sahiixx-agency
+    url: https://github.com/sahiixx/sahiixx-agency
+    role: "GitHub discovery / intel scout"
+    capabilities: [repo-discovery, intel-scout, capability-scoring]
+    category: agent_framework
+    bus_channel: "discovery.*"
+    protocol: internal
+    priority: 1
+
+  web_intel:
+    repo: sahiixx-agency
+    url: https://github.com/sahiixx/sahiixx-agency
+    role: "Web page / GitHub profile fetch"
+    capabilities: [web-fetch, profile-analysis, project-extraction]
+    category: agent_framework
+    bus_channel: "intel.*"
+    protocol: internal
+    priority: 1
+
+  portfolio_publisher:
+    repo: sahiixx-agency
+    url: https://github.com/sahiixx/sahiixx-agency
+    role: "Draft and publish portfolio entries"
+    capabilities: [portfolio-publish, content-generation, pages-deploy]
+    category: content_media
+    bus_channel: "publish.*"
+    protocol: internal
+    priority: 1
+
+  f-worker-ai:
+    repo: f
+    url: https://github.com/sahiixx/f
+    role: "Cloudflare Workers AI gateway"
+    capabilities: [chat-completion, model-listing, workflow-run, mcp-server]
+    category: model_gateway
+    bus_channel: "ai.*"
+    protocol: mcp+rest
+    priority: 1
+
+  lead_machine:
+    repo: sahiixx-agency
+    url: https://github.com/sahiixx/sahiixx-agency
+    role: "Lead qualification + routing for Dubai RE revenue OS"
+    capabilities: [lead-qualification, intent-scoring, segment-tagging, pipeline-routing]
+    category: real_estate
+    bus_channel: "lead.*"
+    protocol: internal
+    priority: 1
+
+  geomatch:
+    repo: sahiixx-agency
+    url: https://github.com/sahiixx/sahiixx-agency
+    role: "GeoMatchAgent — area/property matching for qualified Dubai RE leads"
+    capabilities: [geo-match, area-recommendation, inventory-match, lead-matched]
+    category: real_estate
+    bus_channel: "lead.*"
+    protocol: internal
+    priority: 1
+    tags: [dubai, real-estate, geomatch, lead-machine]
+
+  lead_capture:
+    repo: sahiixx-agency
+    url: https://github.com/sahiixx/sahiixx-agency
+    role: "LeadCaptureAgent — normalize WhatsApp/NEXUS/web intake into lead.created"
+    capabilities: [lead-capture, intake-normalize, nexus-whatsapp]
+    category: real_estate
+    bus_channel: "lead.*"
+    protocol: internal
+    priority: 1
+    tags: [dubai, real-estate, capture, lead-machine, nexus]
+
+  agno:
+    repo: agno
+    url: https://github.com/sahiixx/agno
+    role: "App Builder workspace — TanStack Start + Vite + Better Auth (private)"
+    capabilities: [app-builder, scaffold, preview]
+    category: experience
+    bus_channel: "ui.*"
+    protocol: rest
+    priority: 2
+    tags: [app-builder, tanstack, vite, private]
+
+  memory:
+    repo: sahiixx-titans-memory
+    url: https://github.com/sahiixx/sahiixx-titans-memory
+    role: "Surprise-weighted persistent memory"
+    bus_channel: "memory.*"
+    protocol: python-lib
+    tags: [memory, ai, titan]
+
+  graph:
+    repo: sahiixx-graph-sight
+    url: https://github.com/sahiixx/sahiixx-graph-sight
+    role: "Neo4j trust graph + AST code context"
+    bus_channel: "graph.*"
+    protocol: python-lib
+    tags: [graph, neo4j, context, trust]
+
+  swarm:
+    repo: sovereign-swarm-v2
+    url: https://github.com/sahiixx/sovereign-swarm-v2
+    role: "Modular multi-agent OS"
+    bus_channel: "swarm.*"
+    protocol: a2a
+    tags: [swarm, multi-agent, dubai, real-estate]
+
+  friday:
+    repo: friday-os
+    url: https://github.com/sahiixx/friday-os
+    role: "Voice-first AI OS"
+    bus_channel: "friday.*"
+    protocol: mcp
+    tags: [voice, assistant, personal-ai]
+
+  geoflow:
+    repo: sahiixx-geoflow-agent
+    url: https://github.com/sahiixx/sahiixx-geoflow-agent
+    role: "GEO optimization for Dubai RE listings"
+    bus_channel: "geo.*"
+    protocol: a2a
+    tags: [geo, dubai, real-estate]
+
+  os:
+    repo: sahiix-os
+    url: https://github.com/sahiixx/sahiix-os
+    role: "AI-powered real estate automation workspace UI"
+    bus_channel: "ui.*"
+    protocol: rest
+    tags: [ui, real-estate, automation]
+
+# ─── Routing Rules ─────────────────────────────────────────────
+routing_rules:
+  - pattern: 'publish portfolio|portfolio entry|add .* to (the )?portfolio'
+    target: portfolio_publisher
+  - pattern: 'chat|completion|chat completion|ai model|workers ai|omniroute|list models|ai chat|model list'
+    target: f-worker-ai
+  - pattern: 'github\.com/sahiixx/sahiixx|sahiixx profile|profile README'
+    target: web_intel
+  - pattern: 'fetch https?://|analyze.*(profile|readme|url|page)|web intel|web fetch'
+    target: web_intel
+  - pattern: "trending repo|trending github|discover.*(repo|project|github)|intel scout"
+    target: discovery
+  - pattern: "qualify.*(lead|enquiry|prospect)|score.*lead|route.*lead|schedule.*(viewing|lead|call)"
+    target: lead_machine
+  - pattern: "capture.*lead|lead.*intake|new lead|whatsapp lead|nexus.*(lead|message)|inbound.*(enquiry|lead)"
+    target: lead_capture
+  - pattern: "match.*(lead|property|area)|geomatch|geo.?match|area match|property match|recommend.*(area|community|listing)"
+    target: geomatch
+  - pattern: "trufflehog|secret scan|leaked credential|find secrets"
+    target: trufflehog
+  - pattern: "geo|dubai|real.estate|listing|geoflow"
+    target: geoflow
+  - pattern: "swarm|multi.agent|orchestrat"
+    target: swarm
+  - pattern: "voice|speak|listen|call"
+    target: friday

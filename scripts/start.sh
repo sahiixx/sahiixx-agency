@@ -22,7 +22,7 @@ echo ""
 
 # Start API server in background
 echo "Starting API server..."
-nohup uvicorn sahiixx_agency.api.main:app --host 0.0.0.0 --port 8080 > /tmp/opa_api.log 2>&1 < /dev/null &
+nohup uvicorn sahiixx_agency.api.asgi:app --host 0.0.0.0 --port 8080 > /tmp/opa_api.log 2>&1 < /dev/null &
 echo $! > /tmp/opa_api.pid
 sleep 3
 

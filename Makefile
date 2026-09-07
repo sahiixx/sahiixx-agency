@@ -6,14 +6,14 @@ install:
 	cd dashboard && npm install
 
 sync:
-	.venv/bin/op sync
+	.venv/bin/opa sync
 
 serve:
-	.venv/bin/uvicorn sahiixx_agency.api.main:app --host 0.0.0.0 --port 8082 --reload
+	.venv/bin/uvicorn sahiixx_agency.api.asgi:app --host 0.0.0.0 --port 8082 --reload
 
 dev:
 	@echo "Starting API server..."
-	@.venv/bin/uvicorn sahiixx_agency.api.main:app --host 0.0.0.0 --port 8082 &
+	@.venv/bin/uvicorn sahiixx_agency.api.asgi:app --host 0.0.0.0 --port 8082 &
 	@echo "Starting dashboard dev server..."
 	@cd dashboard && npm run dev
 

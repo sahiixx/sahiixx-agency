@@ -32,4 +32,4 @@ EXPOSE 8080 8081
 
 USER opa
 
-CMD ["uvicorn", "sahiixx_agency.api.main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uvicorn", "sahiixx_agency.api.asgi:app", "--host", "0.0.0.0", "--port", "8080"]

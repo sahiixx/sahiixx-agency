@@ -1,0 +1,19 @@
+--- a/sahiixx_agency/core/engine.py
++++ b/sahiixx_agency/core/engine.py
+@@ after _make_lead_machine
++def _make_geomatch(config, network_policy, audit_logger, task):
++    from sahiixx_agency.adapters.geomatch_agent import GeoMatchAgent
++
++    adapter = GeoMatchAgent(
++        network_policy=network_policy,
++        audit_logger=audit_logger,
++    )
++    return adapter, dict(task.payload)
++
+@@ _SPECIALIZED_ADAPTERS
+     "lead_machine": _make_lead_machine,
+     "qualification": _make_lead_machine,
++    "geomatch": _make_geomatch,
++    "geo_match": _make_geomatch,
++    "geo-match": _make_geomatch,
+     "web_intel": _make_web_intel,

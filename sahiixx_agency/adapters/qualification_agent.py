@@ -49,7 +49,7 @@ _BUDGET_BANDS = [
 
 _TIMELINE_PATTERNS: dict[str, str] = {
     "urgent_0_1m": r"\b(asap|urgent|immediate|this week|right away)\b",
-    "soon_0_3m": r"\b(\d?\s?months?|3 months|moving soon|q[1-4]|next quarter)\b",
+    "soon_0_3m": r"\b(moving soon)\b",
     "exploratory": r"\b(exploring|just looking|curious|someday|future)\b",
 }
 
@@ -61,7 +61,6 @@ class QualificationAgent(BaseAdapter):
         lead_id = payload.get("lead_id")
         msg = (payload.get("message") or "").lower().strip()
         handle = (payload.get("contact") or {}).get("handle", "")
-        channel = (payload.get("contact") or {}).get("channel", "unknown")
 
         intent = self._classify_intent(msg)
         budget_band = self._extract_budget(msg)
@@ -71,7 +70,7 @@ class QualificationAgent(BaseAdapter):
         # Scoring — transparent, additive. Cap at 100.
         score = 0
         score += 40 if budget_band != "unknown" else 0
-        score += 30 if timeline != "unknown" else 0
+        score += 30 if timeline in ("urgent_0_1m", "soon_0_3m") else 0
         score += 30 if intent in ("buy", "sell", "rent") else 12
         score = min(score, 100)
 
@@ -92,7 +91,7 @@ class QualificationAgent(BaseAdapter):
 
         confidence = "high" if score >= 70 else "medium" if score >= 45 else "low"
         # Flag sparse-info cases honestly.
-        if not budget_band or not timeline:
+        if budget_band == "unknown" or timeline == "unknown":
             confidence = "low" if confidence == "high" else confidence
 
         rationale = self._rationale(intent, budget_band, timeline, score)
@@ -133,7 +132,7 @@ class QualificationAgent(BaseAdapter):
             except ValueError:
                 val = 0.0
             unit = (m.group(2) or "").lower()
-            if unit in ("m", "million"):
+            if unit in ("m", "mn", "million"):
                 val *= 1_000_000
             elif unit in ("k", "thousand"):
                 val *= 1_000
@@ -161,6 +160,25 @@ class QualificationAgent(BaseAdapter):
         return "10M_plus" if val >= 10_000_000 else "unknown"
 
     def _extract_timeline(self, msg: str) -> str:
+        # Match complete numeric durations: 12 months must not match "2 months".
+        # Explicit durations take precedence over vague urgency words.
+        duration = re.search(r"(?<![\w.])(\d+(?:\.\d+)?)\s*(days?|weeks?|months?|years?)\b", msg)
+        if duration:
+            amount = float(duration.group(1))
+            unit = duration.group(2)
+            if unit.startswith("day"):
+                months = amount / 30
+            elif unit.startswith("week"):
+                months = amount / 4
+            elif unit.startswith("year"):
+                months = amount * 12
+            else:
+                months = amount
+            if months <= 1:
+                return "urgent_0_1m"
+            return "soon_0_3m" if months <= 3 else "exploratory"
+        if re.search(r"\bnext month\b", msg):
+            return "urgent_0_1m"
         for tl, pat in _TIMELINE_PATTERNS.items():
             if re.search(pat, msg):
                 return tl
@@ -181,8 +199,10 @@ class QualificationAgent(BaseAdapter):
             out.append(f"Stated budget band {budget} → +40")
         else:
             out.append("No budget stated → capped confidence")
-        if timeline != "unknown":
+        if timeline in ("urgent_0_1m", "soon_0_3m"):
             out.append(f"Timeline '{timeline}' → +30")
+        elif timeline == "exploratory":
+            out.append("Exploratory or longer-term timeline → +0")
         else:
             out.append("No timeline → treating as exploratory")
         out.append(f"Intent '{intent}' → +{30 if intent in ('buy','sell','rent') else 12}")

@@ -2,17 +2,17 @@
 
 Prefer **`docs/LEAD_MACHINE_WIRE.md`** (includes API + engine).
 
-## Engine inject
+## Core engine registration
 
 ```python
-try:
-    from sahiixx_agency.core.specialized_lead_adapters import register as _register_lead_adapters
-    _register_lead_adapters(_SPECIALIZED_ADAPTERS)
-except Exception:
-    pass
+from sahiixx_agency.core.specialized_lead_adapters import register as register_lead_adapters
+
+register_lead_adapters(_SPECIALIZED_ADAPTERS)
 ```
 
 Factories live in `sahiixx_agency/core/specialized_lead_adapters.py`.
+`core/engine.py` performs registration directly; it does not rely on the ASGI
+entrypoint, and registration failures are not silently ignored.
 
 ## Routing (already in agency.yaml on this branch)
 

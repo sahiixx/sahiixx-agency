@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import shutil
 import time
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -39,7 +41,11 @@ FAKE_MODULES = [
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    config = AgencyConfig(data_dir=str(tmp_path))
+    workflows_dir = tmp_path / "workflows"
+    source_workflows = Path(__file__).resolve().parents[1] / "data" / "workflows"
+    if source_workflows.exists():
+        shutil.copytree(source_workflows, workflows_dir, dirs_exist_ok=True)
+    config = AgencyConfig(data_dir=str(tmp_path), workflows_dir=str(workflows_dir))
     engine = AgencyEngine(config)
 
     async def fake_discover(username: str) -> list[RepoNode]:

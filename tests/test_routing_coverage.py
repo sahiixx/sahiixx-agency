@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 import pytest
@@ -12,8 +13,14 @@ CONFIG_PATH = Path(__file__).resolve().parents[1] / "config" / "agency.yaml"
 
 
 @pytest.fixture
-def engine():
-    data = yaml.safe_load(CONFIG_PATH.read_text())
+def engine(tmp_path):
+    workflows_dir = tmp_path / "workflows"
+    source_workflows = Path(__file__).resolve().parents[1] / "data" / "workflows"
+    if source_workflows.exists():
+        shutil.copytree(source_workflows, workflows_dir, dirs_exist_ok=True)
+    data = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8"))
+    data["data_dir"] = str(tmp_path)
+    data["workflows_dir"] = str(workflows_dir)
     config = AgencyConfig(**data)
     return AgencyEngine(config)
 

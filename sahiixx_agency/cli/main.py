@@ -562,7 +562,7 @@ def serve(
     console.print(
         Panel(f"Starting API at [bold]http://{host}:{port}[/bold]", title="Agency Server", border_style="green")
     )
-    uvicorn.run("sahiixx_agency.api.main:app", host=host, port=port, reload=reload)
+    uvicorn.run("sahiixx_agency.api.asgi:app", host=host, port=port, reload=reload)
 
 
 @app.command()

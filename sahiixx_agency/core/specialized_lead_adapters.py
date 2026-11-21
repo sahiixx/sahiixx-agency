@@ -6,7 +6,8 @@ Also callable as register(dict) to inject keys into an existing registry map.
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 
 def _make_geomatch(config, network_policy, audit_logger, task):

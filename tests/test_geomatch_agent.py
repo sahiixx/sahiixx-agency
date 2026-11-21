@@ -9,7 +9,7 @@ from sahiixx_agency.adapters.geomatch_agent import GeoMatchAgent
 
 def _run(payload: dict):
     agent = GeoMatchAgent()
-    return asyncio.get_event_loop().run_until_complete(agent.execute(payload))
+    return asyncio.run(agent.execute(payload))
 
 
 def test_marina_hint_ranks_marina_high():

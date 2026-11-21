@@ -10,7 +10,7 @@ from typing import Any
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 router = APIRouter(tags=["lead-machine"])
 
@@ -28,14 +28,16 @@ class LeadCaptureRequest(BaseModel):
     raw_ref: str | None = None
     lead_id: str | None = None
 
+    @field_validator("message")
+    @classmethod
+    def nonempty_message(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("message_required")
+        return value.strip()
 
-class LeadQualifyRequest(BaseModel):
-    lead_id: str | None = None
-    message: str
-    contact: ContactIn | None = None
-    source: str = "api"
+
+class LeadQualifyRequest(LeadCaptureRequest):
     captured_at: str | None = None
-    raw_ref: str | None = None
 
 
 class LeadMatchRequest(BaseModel):
@@ -73,8 +75,8 @@ async def qualify_lead(body: LeadQualifyRequest) -> dict[str, Any]:
     payload = body.model_dump()
     if body.contact:
         payload["contact"] = body.contact.model_dump()
-    payload.setdefault("lead_id", body.lead_id or f"lead_{uuid4().hex[:12]}")
-    payload.setdefault("captured_at", body.captured_at or datetime.now(timezone.utc).isoformat())
+    payload["lead_id"] = body.lead_id or f"lead_{uuid4().hex[:12]}"
+    payload["captured_at"] = body.captured_at or datetime.now(timezone.utc).isoformat()
     try:
         return await agent.execute(payload)
     except Exception as exc:  # noqa: BLE001
@@ -97,7 +99,7 @@ async def match_lead(body: LeadMatchRequest) -> dict[str, Any]:
 @router.post("/opa/lead/pipeline")
 @router.post("/api/opa/lead/pipeline")
 async def lead_pipeline(body: LeadQualifyRequest) -> dict[str, Any]:
-    """Capture → qualify → match in one call (sync pipeline for demos/E2E)."""
+    """Capture → qualify → match qualified leads only; no booking or messaging."""
     from sahiixx_agency.adapters.geomatch_agent import GeoMatchAgent
     from sahiixx_agency.adapters.lead_capture_agent import LeadCaptureAgent
     from sahiixx_agency.adapters.qualification_agent import QualificationAgent
@@ -109,6 +111,7 @@ async def lead_pipeline(body: LeadQualifyRequest) -> dict[str, Any]:
             "source": body.source,
             "raw_ref": body.raw_ref,
             "lead_id": body.lead_id,
+            "captured_at": body.captured_at,
         }
     )
     qualified = await QualificationAgent().execute(
@@ -118,6 +121,13 @@ async def lead_pipeline(body: LeadQualifyRequest) -> dict[str, Any]:
             "contact": body.contact.model_dump() if body.contact else capture.get("contact"),
         }
     )
+    if qualified["status"] != "qualified":
+        return {
+            "status": "ok",
+            "captured": capture,
+            "qualified": qualified,
+            "matched": None,
+        }
     matched = await GeoMatchAgent().execute(
         {
             "lead_id": qualified.get("lead_id") or capture.get("lead_id"),

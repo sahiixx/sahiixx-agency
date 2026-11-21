@@ -55,11 +55,12 @@ from .router import TaskRouter
 from .runner import CloneManager, RepoRunner
 from .scheduler import WorkflowScheduler
 from .security import AuditLogger, InputSanitizer, NetworkPolicy, SecretsManager
+from .specialized_lead_adapters import register as register_lead_adapters
 from .workflows import WorkflowEngine
 
 # Temporal integration (Phase 3)
 try:
-    from ..temporal import TemporalManager, TemporalConfig, get_temporal_manager
+    from ..temporal import TemporalConfig, TemporalManager, get_temporal_manager
     TEMPORAL_AVAILABLE = True
 except ImportError:
     TEMPORAL_AVAILABLE = False
@@ -69,7 +70,7 @@ except ImportError:
 
 # Supervisor integration (Phase 1)
 try:
-    from ..supervisor import run_supervisor, SUPERVISOR_AVAILABLE
+    from ..supervisor import SUPERVISOR_AVAILABLE, run_supervisor
 except ImportError:
     SUPERVISOR_AVAILABLE = False
     run_supervisor = None
@@ -503,6 +504,9 @@ _SPECIALIZED_ADAPTERS: dict[
 }
 
 
+register_lead_adapters(_SPECIALIZED_ADAPTERS)
+
+
 class AgencyEngine:
     """Central engine for the One Person Agency."""
 
@@ -556,11 +560,11 @@ class AgencyEngine:
             dependency_scanner=self.dependency_scanner,
             audit_logger=self.audit,
         )
-        
+
         # Temporal integration (Phase 3)
         self._temporal_manager = None
         self._temporal_worker_task = None
-        
+
         self.router.engine = self
         self._running = False
         self._worker_task: asyncio.Task[Any] | None = None
@@ -705,18 +709,18 @@ class AgencyEngine:
             await self._temporal_manager.connect()
 
             # Import workflows and activities
-            from ..temporal.workflows import (
-                TaskExecutionWorkflow,
-                MultiStepWorkflow,
-                BatchTaskWorkflow,
-            )
             from ..temporal.activities import (
                 clone_repo_activity,
-                run_dependency_scan_activity,
                 execute_adapter_activity,
                 record_task_result_activity,
+                run_dependency_scan_activity,
                 send_notification_activity,
                 set_dependencies,
+            )
+            from ..temporal.workflows import (
+                BatchTaskWorkflow,
+                MultiStepWorkflow,
+                TaskExecutionWorkflow,
             )
 
             # Set activity dependencies
@@ -1567,7 +1571,7 @@ class AgencyEngine:
             with self.metrics.timer("task_execution_latency_seconds", labels={"module": task.module_id or "temporal"}):
                 # Execute via Temporal workflow
                 from ..temporal.workflows import TaskExecutionWorkflow
-                
+
                 result = await self._temporal_manager.execute_workflow(
                     TaskExecutionWorkflow,
                     args=[task.model_dump(mode="json")],

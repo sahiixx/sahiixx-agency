@@ -8,7 +8,7 @@ from sahiixx_agency.adapters.lead_capture_agent import LeadCaptureAgent
 
 
 def _run(payload):
-    return asyncio.get_event_loop().run_until_complete(LeadCaptureAgent().execute(payload))
+    return asyncio.run(LeadCaptureAgent().execute(payload))
 
 
 def test_basic_capture():

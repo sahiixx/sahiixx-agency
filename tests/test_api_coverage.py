@@ -46,6 +46,23 @@ def client(tmp_path, monkeypatch):
         return [module]
 
     monkeypatch.setattr(engine.registry, "discover", fake_discover)
+
+    async def fake_intel_scout(
+        report_type: str = "trending",
+        languages: list[str] | None = None,
+        min_stars: int = 50,
+    ):
+        from sahiixx_agency.core.models import IntelReport
+
+        return IntelReport(
+            id="intel_stub",
+            report_type=report_type,
+            repos=[],
+            summary=f"Offline stub report for '{report_type}'.",
+            raw_queries=[f"type={report_type}"],
+        )
+
+    monkeypatch.setattr(engine, "run_intel_scout", fake_intel_scout)
     monkeypatch.setattr(
         engine.runner,
         "run",
